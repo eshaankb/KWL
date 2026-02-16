@@ -1,0 +1,14 @@
+|import\standard>loginout\| with log;
+
+log,wt['Hello, World!'];
+int response = log,rd['How many numbers do you want to fizzbuzz?'];
+for/i in [1:response]{
+    if/mod[response;3]==0/[
+        log.wt['Fizz'];
+    ]if/mod[response;5]==0/[
+        log.wt['Buzz'];
+    ]if/mod[response;3]!=0 && mod[response;5]!=0/[
+        log.wt[response];
+    ]
+    log.nline;
+}

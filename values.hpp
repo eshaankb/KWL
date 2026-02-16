@@ -1,6 +1,8 @@
 #include <string>
-#include <vector>  
-
+#include <vector>
+#pragma once
+#include<iostream>
+using namespace std;
 enum class ValueType {
     Integer,
     Float,
@@ -10,23 +12,29 @@ enum class ValueType {
 };
 
 struct RuntimeVal {
-    ValueType type;
+    ValueType type; 
     RuntimeVal(ValueType t) : type(t) {}    
     virtual ~RuntimeVal() = default;
+    virtual void print() const = 0;
 };
 
 struct Nullval : RuntimeVal {
-    Nullval() : RuntimeVal(ValueType::Null) {}
+    float value = NAN;
+    Nullval() : RuntimeVal(ValueType::Null) {};
+    void print() const override { cout << "null"; };
 };
 struct IntVal : RuntimeVal {
     int value;
-    IntVal(int v) : RuntimeVal(ValueType::Integer), value(v) {}
+    IntVal(int v) : RuntimeVal(ValueType::Integer), value(v) {};
+    void print() const override { cout << value; };
 };
-struct Floatval : RuntimeVal {
+struct FloatVal : RuntimeVal {
     float value;
-    Floatval(float v) : RuntimeVal(ValueType::Float), value(v) {}
+    FloatVal(float v) : RuntimeVal(ValueType::Float), value(v) {};
+    void print() const override { cout << value; };
 };
 struct StringVal : RuntimeVal {
-    std::string value;
-    StringVal(std::string v) : RuntimeVal(ValueType::String), value(v) {}
+    string value;
+    StringVal(string v) : RuntimeVal(ValueType::String), value(v) {};
+    void print() const override { cout << value; };
 };

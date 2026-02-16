@@ -5,6 +5,17 @@
 #include"values.hpp"
 #include"ast.hpp"
 #include"interpreter.hpp"
+#include<iostream>
+string valueTypeName(ValueType t) {
+    switch (t) {
+        case ValueType::Integer: return "Integer";
+        case ValueType::Float: return "Float";
+        case ValueType::String: return "String";
+        case ValueType::Function: return "Function";
+        case ValueType::Null: return "Null";
+    }
+    return "Unknown";
+}
 
 LiteralType classifyLiteral(const std::string& s) {
     if (s.empty()) return LiteralType::Invalid;
@@ -36,9 +47,12 @@ LiteralType classifyLiteral(const std::string& s) {
 std::unique_ptr<RuntimeVal> EvalProgram(Program* prog) {
     std::unique_ptr<RuntimeVal> result = std::make_unique<Nullval>();
     for (auto stmt : prog->body) {
+        //cout<<"Evaluating statement at address: " << stmt->kind << endl;
+        // cout<<"Evaluating statement of type: " << nodeTypeName(stmt->kind) << endl;
         result = Eval(stmt);
     }
-    return std::make_unique<RuntimeVal>(result);
+   // cout << "Program result type: " << valueTypeName(result->type) << endl;
+    return /*std::make_unique<RuntimeVal>*/(result);
 }
 
 
@@ -93,6 +107,7 @@ FloatVal EvalFloatBExpr(FloatVal left, FloatVal right, std::string op){
 std::unique_ptr<RuntimeVal> EvalBinaryExpr(BinaryExpr binop){
     std::unique_ptr<RuntimeVal> LHS = Eval(binop.left);
     std::unique_ptr<RuntimeVal> RHS = Eval(binop.right);
+    // cout<<"LHS Type: " << static_cast<int>(LHS->type) << ", RHS Type: " << static_cast<int>(RHS->type) << endl;
     if(RHS->type==ValueType::Null||LHS->type==ValueType::Null){
         return(std::make_unique<Nullval>());
     }
@@ -112,15 +127,28 @@ std::unique_ptr<RuntimeVal> EvalBinaryExpr(BinaryExpr binop){
 
 std::unique_ptr<RuntimeVal> Eval(Stmt* astNode){
     switch(astNode->kind){
-        case(NodeType::Literal):
-        if(classifyLiteral(dynamic_cast<Literal*>(astNode)->value) == LiteralType::Integer){
-            Literal* lit = dynamic_cast<Literal*>(astNode);
-            return std::make_unique<IntVal>(std::stoi(lit->value));
-        } else if(classifyLiteral(dynamic_cast<Literal*>(astNode)->value) == LiteralType::Float){
-            Literal* lit = dynamic_cast<Literal*>(astNode);
-            return std::make_unique<FloatVal>(std::stof(lit->value));}
-        case(NodeType::Program):
-            return EvalProgram(dynamic_cast<Program*>(astNode));
-    }
+        case NodeType::Literal: {
+            auto* lit = dynamic_cast<Literal*>(astNode);
+            auto type = classifyLiteral(lit->value);
+            if(type == LiteralType::Integer)
+                return std::make_unique<IntVal>(std::stoi(lit->value));
+            else if(type == LiteralType::Float)
+                return std::make_unique<FloatVal>(std::stof(lit->value));
+            else
+                return std::make_unique<StringVal>(lit->value);
+        }
 
+        case NodeType::BinaryExpression: {
+            auto* binop = dynamic_cast<BinaryExpr*>(astNode);
+            return EvalBinaryExpr(*binop);
+        }
+
+        case NodeType::Program: {
+            return EvalProgram(dynamic_cast<Program*>(astNode));
+        }
+
+        default:
+            std::cerr<<"Unimplemented AST node type in Eval: "<<static_cast<int>(astNode->kind)<<std::endl;
+            return std::make_unique<Nullval>();
+    }
 }

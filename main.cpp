@@ -1,10 +1,11 @@
 #include<string>
 #include<vector>
+#include<memory>
 #include"parser.hpp"
 #include<iostream>
 #include"interpreter.hpp"
-// #include"ast.hpp"
-// #include"values.hpp"
+#include"ast.hpp"
+#include"values.hpp"
 
 using namespace std;
 void printAST(Stmt* node, int indent = 0) {
@@ -35,10 +36,12 @@ int main() {
         Program program = parser.produceAST(input);
         //print the AST for debugging
         for (auto stmt : program.body) {
-            // cout << "Node Type: " << nodeTypeName(stmt->kind) << endl
-            //     << "Node Address: " << stmt << endl;}
+            cout << "Node Type: " << nodeTypeName(stmt->kind) << endl
+                << "Node Address: " << stmt << endl;
             //cout << "Interpreted Value: " << Eval(program.body[0]).type << endl;
             printAST(stmt);
         }
-        
+        unique_ptr<RuntimeVal> result = Eval(&program);
+        result->print();
+        cout << endl;
 }}
