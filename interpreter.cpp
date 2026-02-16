@@ -7,10 +7,49 @@
 RuntimeVal EvalProgram(Program* prog) {
     RuntimeVal result = Nullval();
     for (auto stmt : prog->body) {
-        result = Interpret(stmt);
+        result = Eval(stmt);
     }
     return result;
 }
+
+
+IntVal EvalIntBExpr(IntVal left, IntVal right, std::string op){
+    int result=0;
+    bool works=false;
+    if(op=="+"){
+        result = left.value+right.value;
+        works=true;
+    }else if(op=="-"){
+        result = left.value-right.value;
+        works=true;
+    }else if(op=="*"){
+        result = left.value*right.value;
+        works=true;
+    }else if(op=="/"){
+        if(right.value!=0){
+        result = left.value/right.value;
+        works=true;}
+    }
+    if(works){
+        return(IntVal(result));
+    }else{
+        return(IntVal(NAN));
+    }
+}
+
+ RuntimeVal EvalBinaryExpr(BinaryExpr binop){
+    RuntimeVal LHS = Eval(binop.left);
+    RuntimeVal  RHS = Eval(binop.right);
+    if(RHS.type==ValueType::Integer||LHS.type==ValueType::Integer){
+        //return 
+    }else if(RHS.type==ValueType::Float&&RHS.type==ValueType::Float){
+        
+    }
+    return(Nullval());
+
+ }
+
+
 
 LiteralType classifyLiteral(const std::string& s) {
     if (s.empty()) return LiteralType::Invalid;
@@ -39,7 +78,7 @@ LiteralType classifyLiteral(const std::string& s) {
     return LiteralType::Invalid;
 }
 
-RuntimeVal Interpret(Stmt* astNode){
+RuntimeVal Eval(Stmt* astNode){
     switch(astNode->kind){
         case(NodeType::Literal):
         if(classifyLiteral(dynamic_cast<Literal*>(astNode)->value) == LiteralType::Integer){

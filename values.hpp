@@ -3,6 +3,7 @@
 
 enum class ValueType {
     Integer,
+    Float,
     String,
     Function,
     Null
@@ -11,6 +12,7 @@ enum class ValueType {
 struct RuntimeVal {
     ValueType type;
     RuntimeVal(ValueType t) : type(t) {}    
+    virtual ~RuntimeVal() = default;
 };
 
 struct Nullval : RuntimeVal {
@@ -22,7 +24,7 @@ struct IntVal : RuntimeVal {
 };
 struct Floatval : RuntimeVal {
     float value;
-    Floatval(float v) : RuntimeVal(ValueType::Integer), value(v) {}
+    Floatval(float v) : RuntimeVal(ValueType::Float), value(v) {}
 };
 struct StringVal : RuntimeVal {
     std::string value;

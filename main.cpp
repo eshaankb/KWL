@@ -37,7 +37,7 @@ int main() {
         for (auto stmt : program.body) {
             // cout << "Node Type: " << nodeTypeName(stmt->kind) << endl
             //     << "Node Address: " << stmt << endl;}
-            //cout << "Interpreted Value: " << Interpret(program.body[0]).type << endl;
+            //cout << "Interpreted Value: " << Eval(program.body[0]).type << endl;
             printAST(stmt);
         }
         

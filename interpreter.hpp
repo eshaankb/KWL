@@ -9,6 +9,6 @@ enum class LiteralType {
     Invalid
 };
 
-RuntimeVal Interpret(Stmt* astNode);
+RuntimeVal Eval(Stmt* astNode);
 
 LiteralType cLiteral(std::string s);
