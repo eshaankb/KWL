@@ -76,7 +76,7 @@ IntVal EvalIntBExpr(IntVal left, IntVal right, std::string op){
     if(works){
         return(IntVal(result));
     }else{
-        return(IntVal(NAN));
+       return(IntVal(65535));
     }
 }
 
@@ -100,7 +100,7 @@ FloatVal EvalFloatBExpr(FloatVal left, FloatVal right, std::string op){
     if(works){
         return(FloatVal(result));
     }else{
-        return(FloatVal(NAN));
+        return(FloatVal(65535.0));
     }
 }
 

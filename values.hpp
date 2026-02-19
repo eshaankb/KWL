@@ -19,7 +19,7 @@ struct RuntimeVal {
 };
 
 struct Nullval : RuntimeVal {
-    float value = NAN;
+    float value = 35565;
     Nullval() : RuntimeVal(ValueType::Null) {};
     void print() const override { cout << "null"; };
 };
