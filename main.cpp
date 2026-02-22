@@ -6,7 +6,7 @@
 #include"interpreter.hpp"
 #include"ast.hpp"
 #include"values.hpp"
-
+#include"environment.hpp"
 using namespace std;
 void printAST(Stmt* node, int indent = 0) {
     string pad(indent, ' ');
@@ -26,6 +26,8 @@ int main() {
     cout << "Init:" << endl;
     cout << "░█ ▄▀ ░█  ░█ ░█   \n░█▀▄  ░█░█░█ ░█   \n░█ ░█ ░█▄▀▄█ ░█▄▄█"<< endl;
     Parser parser;
+    Environment env;
+    env.declareVal("x", make_unique<IntVal>(100));
     while(true) {
         string input;
         getline(cin,input);
@@ -41,7 +43,7 @@ int main() {
             //cout << "Interpreted Value: " << Eval(program.body[0]).type << endl;
             printAST(stmt);
         }
-        unique_ptr<RuntimeVal> result = Eval(&program);
+        unique_ptr<RuntimeVal> result = Eval(&program, env);
         result->print();
         cout << endl;
 }}

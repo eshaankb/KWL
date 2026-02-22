@@ -6,6 +6,7 @@
 #include"ast.hpp"
 #include"interpreter.hpp"
 #include<iostream>
+#include "environment.hpp"
 string valueTypeName(ValueType t) {
     switch (t) {
         case ValueType::Integer: return "Integer";
@@ -44,15 +45,12 @@ LiteralType classifyLiteral(const std::string& s) {
     return LiteralType::Invalid;
 }
 
-std::unique_ptr<RuntimeVal> EvalProgram(Program* prog) {
+std::unique_ptr<RuntimeVal> EvalProgram(Program* prog,Environment& env) {
     std::unique_ptr<RuntimeVal> result = std::make_unique<Nullval>();
     for (auto stmt : prog->body) {
-        //cout<<"Evaluating statement at address: " << stmt->kind << endl;
-        // cout<<"Evaluating statement of type: " << nodeTypeName(stmt->kind) << endl;
-        result = Eval(stmt);
+        result = Eval(stmt, env);
     }
-   // cout << "Program result type: " << valueTypeName(result->type) << endl;
-    return /*std::make_unique<RuntimeVal>*/(result);
+    return (result);
 }
 
 
@@ -104,10 +102,9 @@ FloatVal EvalFloatBExpr(FloatVal left, FloatVal right, std::string op){
     }
 }
 
-std::unique_ptr<RuntimeVal> EvalBinaryExpr(BinaryExpr binop){
-    std::unique_ptr<RuntimeVal> LHS = Eval(binop.left);
-    std::unique_ptr<RuntimeVal> RHS = Eval(binop.right);
-    // cout<<"LHS Type: " << static_cast<int>(LHS->type) << ", RHS Type: " << static_cast<int>(RHS->type) << endl;
+std::unique_ptr<RuntimeVal> EvalBinaryExpr(BinaryExpr binop, Environment& env){
+    std::unique_ptr<RuntimeVal> LHS = Eval(binop.left, env);
+    std::unique_ptr<RuntimeVal> RHS = Eval(binop.right, env);
     if(RHS->type==ValueType::Null||LHS->type==ValueType::Null){
         return(std::make_unique<Nullval>());
     }
@@ -120,12 +117,25 @@ std::unique_ptr<RuntimeVal> EvalBinaryExpr(BinaryExpr binop){
     }
     return(std::make_unique<Nullval>());
 
- }
+}
+
+std::unique_ptr<RuntimeVal> EvalIdentifier(Identifier identifier, Environment& env){
+    switch(env.getVal(identifier.name)->type){
+        case ValueType::Integer:
+            return std::make_unique<IntVal>(static_cast<IntVal&>(*env.getVal(identifier.name)));
+        case ValueType::Float:
+            return std::make_unique<FloatVal>(static_cast<FloatVal&>(*env.getVal(identifier.name)));
+        case ValueType::String:
+            return std::make_unique<StringVal>(static_cast<StringVal&>(*env.getVal(identifier.name)));
+        default:
+            return std::make_unique<Nullval>();
+    }
+}
 
 
 
 
-std::unique_ptr<RuntimeVal> Eval(Stmt* astNode){
+std::unique_ptr<RuntimeVal> Eval(Stmt* astNode, Environment& env){
     switch(astNode->kind){
         case NodeType::Literal: {
             auto* lit = dynamic_cast<Literal*>(astNode);
@@ -137,14 +147,16 @@ std::unique_ptr<RuntimeVal> Eval(Stmt* astNode){
             else
                 return std::make_unique<StringVal>(lit->value);
         }
+        case NodeType::Identifier: {
 
+        }
         case NodeType::BinaryExpression: {
             auto* binop = dynamic_cast<BinaryExpr*>(astNode);
-            return EvalBinaryExpr(*binop);
+            return EvalBinaryExpr(*binop, env);
         }
 
         case NodeType::Program: {
-            return EvalProgram(dynamic_cast<Program*>(astNode));
+            return EvalProgram(dynamic_cast<Program*>(astNode),env);
         }
 
         default:
