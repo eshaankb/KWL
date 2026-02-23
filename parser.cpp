@@ -1,4 +1,5 @@
 #include "parser.hpp"
+#include"values.hpp"
 #include <iostream>
 
 using namespace std;
@@ -50,8 +51,24 @@ Stmt* Parser::ParseStmt() {
 
 Stmt* Parser::ParseVarDecl() {
     // consume type
-    eat(); // TypeIdent (you can store this later if you want typed AST)
-
+    //add constant support later
+    ValueType type;
+    if(true){
+        Token tem = eat();
+        if(tem.value=="int"){
+            type=ValueType::Integer;
+        }if(tem.value=="int64"){
+            type=ValueType::Integer;
+        }if(tem.value=="float"){
+            type=ValueType::Float;
+        }if(tem.value=="float64"){
+            type=ValueType::Float;
+        }if(tem.value=="string"){
+            type=ValueType::String;
+        }
+    //add size support for each
+    }
+    //consume identifier
     Token name = eat();
     if (name.type != TokenType::Identifier) {
         cout << "Expected identifier in variable declaration\n";

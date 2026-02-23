@@ -14,6 +14,7 @@ string valueTypeName(ValueType t) {
         case ValueType::String: return "String";
         case ValueType::Function: return "Function";
         case ValueType::Null: return "Null";
+        case ValueType::Bool: return "Boolean";
     }
     return "Unknown";
 }
@@ -148,7 +149,8 @@ std::unique_ptr<RuntimeVal> Eval(Stmt* astNode, Environment& env){
                 return std::make_unique<StringVal>(lit->value);
         }
         case NodeType::Identifier: {
-
+            auto* id = dynamic_cast<Identifier*>(astNode);
+            return EvalIdentifier(*id, env);
         }
         case NodeType::BinaryExpression: {
             auto* binop = dynamic_cast<BinaryExpr*>(astNode);

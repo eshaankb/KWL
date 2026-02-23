@@ -7,7 +7,7 @@
 #include<cctype>
 #include<map>
 #include<sstream>
-
+#include"values.hpp"
 using namespace std;
 
 enum NodeType {
@@ -79,11 +79,12 @@ public:
 class VarDecl : public Stmt {
 public:
     string name;
-    Expr* initializer; 
+    Expr* value; 
     bool immutable;
+    ValueType type;
 
-    VarDecl(const string& n, Expr* init = nullptr, bool immut = false)
-        : Stmt(VariableDeclaration), name(n), initializer(init), immutable(immut) {}
+    VarDecl(ValueType tp, string& n, Expr* init = nullptr, bool immut = false)
+        : Stmt(VariableDeclaration), type(tp), name(n), value(init), immutable(immut) {}
 };
 
 class Assignment : public Stmt {

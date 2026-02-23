@@ -115,13 +115,13 @@ public:
 class VarDecl : public Stmt {
 public:
     string name;
-    Expr* initializer;
+    Expr* value;
     bool immutable;
 
     VarDecl(const string& n, Expr* init = nullptr, bool immut = false)
         : Stmt(NodeType::VariableDeclaration),
           name(n),
-          initializer(init),
+          value(init),
           immutable(immut) {}
 };
 

@@ -8,6 +8,7 @@ enum class ValueType {
     Float,
     String,
     Function,
+    Bool,
     Null
 };
 
@@ -16,6 +17,12 @@ struct RuntimeVal {
     RuntimeVal(ValueType t) : type(t) {}    
     virtual ~RuntimeVal() = default;
     virtual void print() const = 0;
+};
+
+struct BoolVal : RuntimeVal {
+    bool value;
+    BoolVal(bool v) : RuntimeVal(ValueType::Bool), value(v) {};
+    void print() const override { cout << (value ? "true" : "false"); };
 };
 
 struct Nullval : RuntimeVal {
