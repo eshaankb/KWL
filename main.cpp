@@ -26,8 +26,7 @@ int main() {
     cout << "Init:" << endl;
     cout << "░█ ▄▀ ░█  ░█ ░█   \n░█▀▄  ░█░█░█ ░█   \n░█ ░█ ░█▄▀▄█ ░█▄▄█"<< endl;
     Parser parser;
-    Environment env;
-    env.declareVal("x", make_unique<IntVal>(100));
+    Environment env; 
     while(true) {
         string input;
         getline(cin,input);

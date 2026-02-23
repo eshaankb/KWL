@@ -125,13 +125,13 @@ public:
           immutable(immut) {}
 };
 
-class Assignment : public Stmt {
+class Assignment : public Expr {
 public:
     Expr* target;
     Expr* value;
 
     Assignment(Expr* t, Expr* val)
-        : Stmt(NodeType::Assignment), target(t), value(val) {}
+        : Expr(NodeType::Assignment), target(t), value(val) {}
 };
 
 class IfStmt : public Stmt {

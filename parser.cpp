@@ -1,6 +1,6 @@
 #include "parser.hpp"
 #include"values.hpp"
-#include <iostream>
+#include <stdexcept>
 
 using namespace std;
 
@@ -36,7 +36,8 @@ Token Parser::eat() {
 
 Stmt* Parser::ParseStmt() {
     // variable declaration: int x = ...
-    if (peek().type == TokenType::TypeIdent) {
+    if (peek().type == TokenType::TypeIdent || 
+       (peek().type == TokenType::Keyword && peek().value == "mkimmutable")) {
         return ParseVarDecl();
     }
 
@@ -51,10 +52,22 @@ Stmt* Parser::ParseStmt() {
 
 Stmt* Parser::ParseVarDecl() {
     // consume type
-    //add constant support later
     ValueType type;
+    bool isc=false; //is constant
     if(true){
-        Token tem = eat();
+        Token tem;
+        Token te1 = eat();
+        //see if constant
+        if(te1.type==TokenType::Keyword&&te1.value=="mkimmutable"){
+            isc=true;
+            eat(); //consume bslash
+            tem = eat();
+        }else{
+            tem = te1;
+        }
+        if(tem.type!=TokenType::TypeIdent){
+
+        }
         if(tem.value=="int"){
             type=ValueType::Integer;
         }if(tem.value=="int64"){
@@ -71,7 +84,7 @@ Stmt* Parser::ParseVarDecl() {
     //consume identifier
     Token name = eat();
     if (name.type != TokenType::Identifier) {
-        cout << "Expected identifier in variable declaration\n";
+        throw std::runtime_error("Expected identifier in variable declaration\n");
         return new VarDecl("INVALID");
     }
 
@@ -81,12 +94,19 @@ Stmt* Parser::ParseVarDecl() {
         eat(); // =
         initializer = ParseExpr();
     }
-
+    if(isc&&peek().type==TokenType::Backslash){
+        eat(); //consume bslash
+    }else if(isc){
+        throw std::runtime_error("Expected closing '\\' \n");
+    }
     if (peek().type == TokenType::Semicolon)
         eat();
-
-    return new VarDecl(name.value, initializer);
+    else{
+        throw std::runtime_error("Syntax Error: Expected ';' at the end of statement, but found '" + peek().value + "'");
+    }
+    return new VarDecl(name.value, initializer, isc);
 }
+
 
 
 
@@ -107,9 +127,13 @@ Expr* Parser::ParseBinaryExpr(int precedence) {
             break;
 
         Token op = eat();
-        Expr* right = ParseBinaryExpr(nextPrec + 1);
+        Expr* right = (op.type == TokenType::AssignmentOp)? ParseBinaryExpr(nextPrec): ParseBinaryExpr(nextPrec + 1);
 
-        left = new BinaryExpr(left, right, op.value);
+        if (op.type == TokenType::AssignmentOp) {
+            left = new Assignment(left, right);
+        } else {
+            left = new BinaryExpr(left, right, op.value);
+        }
     }
 
     return left;
@@ -139,14 +163,14 @@ Expr* Parser::ParsePrimExpr() {
         case TokenType::Backslash:
             expr = ParseExpr();
             if (peek().type != TokenType::Backslash) {
-                cout << "Expected closing \\n";
+               throw std::runtime_error("Expected closing '\\' \n");
             } else {
                 eat();
             }
             break;
 
         default:
-            cout << "UNEXPECTED TOKEN: " << tok.value << endl;
+            throw std::runtime_error("UNEXPECTED TOKEN: "+tok.value+'\n');
             return new Literal("INVALID");
     }
     // Handle postfix expressions: calls and indexing
@@ -172,7 +196,7 @@ Expr* Parser::ParsePrimExpr() {
             eat(); // [
             Expr* index = ParseExpr();
             if (peek().type != TokenType::RBracket) {
-                cout << "Expected ]\n";
+                throw std::runtime_error("Expected ]\n");
             } else {
                 eat();
             }
@@ -202,7 +226,7 @@ int Parser::getPrecedence(const Token& tok) {
             return 5;
 
         case TokenType::AssignmentOp:
-            return 3;
+            return 1;
 
         default:
             return -1;

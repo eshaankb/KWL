@@ -36,7 +36,8 @@ enum class TokenType {
 struct Token {
     TokenType type;
     std::string value;
-    Token(std::string in_val, TokenType in_type);
+    Token(std::string in_val, TokenType in_type) : value(in_val), type(in_type) {};
+    Token() : type(TokenType::Invalid), value("") {}
 };
-
 std::vector<Token> tokenize(std::string sourcecode);
+// std::string tokenTypeName(TokenType t){};

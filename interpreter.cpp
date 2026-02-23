@@ -7,6 +7,11 @@
 #include"interpreter.hpp"
 #include<iostream>
 #include "environment.hpp"
+/*
+========================
+HELPER FUNCTIONS
+========================
+*/
 string valueTypeName(ValueType t) {
     switch (t) {
         case ValueType::Integer: return "Integer";
@@ -53,7 +58,11 @@ std::unique_ptr<RuntimeVal> EvalProgram(Program* prog,Environment& env) {
     }
     return (result);
 }
-
+/*
+========================
+EVALUATION FUNCTIONS
+========================
+*/
 
 IntVal EvalIntBExpr(IntVal left, IntVal right, std::string op){
     int result=0;
@@ -103,6 +112,7 @@ FloatVal EvalFloatBExpr(FloatVal left, FloatVal right, std::string op){
     }
 }
 
+
 std::unique_ptr<RuntimeVal> EvalBinaryExpr(BinaryExpr binop, Environment& env){
     std::unique_ptr<RuntimeVal> LHS = Eval(binop.left, env);
     std::unique_ptr<RuntimeVal> RHS = Eval(binop.right, env);
@@ -133,8 +143,23 @@ std::unique_ptr<RuntimeVal> EvalIdentifier(Identifier identifier, Environment& e
     }
 }
 
+std::unique_ptr<RuntimeVal> EvalVarDecl(VarDecl decl, Environment& env){
+    std::unique_ptr<RuntimeVal> initVal;
+    if(decl.value!=nullptr){
+        initVal = Eval(decl.value, env);
+    }else{
+        initVal = std::make_unique<Nullval>();
+    }
+    env.declareVal(decl.name, std::move(initVal), decl.immutable);
+    return std::make_unique<Nullval>();
+}
 
 
+/*
+========================
+INTERPRETER
+========================
+*/
 
 std::unique_ptr<RuntimeVal> Eval(Stmt* astNode, Environment& env){
     switch(astNode->kind){
@@ -148,6 +173,11 @@ std::unique_ptr<RuntimeVal> Eval(Stmt* astNode, Environment& env){
             else
                 return std::make_unique<StringVal>(lit->value);
         }
+        case NodeType::VariableDeclaration: {
+            auto* decl = dynamic_cast<VarDecl*>(astNode);
+            return EvalVarDecl(*decl, env);
+
+        }
         case NodeType::Identifier: {
             auto* id = dynamic_cast<Identifier*>(astNode);
             return EvalIdentifier(*id, env);
@@ -159,7 +189,16 @@ std::unique_ptr<RuntimeVal> Eval(Stmt* astNode, Environment& env){
 
         case NodeType::Program: {
             return EvalProgram(dynamic_cast<Program*>(astNode),env);
-        }
+        }case NodeType::Assignment: {
+            auto* asgn = dynamic_cast<Assignment*>(astNode);
+            auto* ident = dynamic_cast<Identifier*>(asgn->target);
+            if (!ident) {
+                throw std::runtime_error("Invalid assignment target (L-Value error)");
+            }
+            auto val = Eval(asgn->value, env);
+            env.assignVal(ident->name, std::move(val)); 
+            return env.getVal(ident->name)->clone();
+    }
 
         default:
             std::cerr<<"Unimplemented AST node type in Eval: "<<static_cast<int>(astNode->kind)<<std::endl;

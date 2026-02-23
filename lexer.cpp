@@ -32,13 +32,6 @@ bool isBoolLiteral(const string& s) {
 bool isNullLiteral(const string& s) {
     return s == "null";
 }
-
-
-
-Token::Token(std::string in_val, TokenType in_type) {
-    value = std::move(in_val);
-    type = in_type;
-}
 vector<Token> tokenize(string sourcecode) {
     bool uclosedbslsh = false;
     vector<Token> tokens;
