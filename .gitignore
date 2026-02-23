@@ -38,7 +38,8 @@
 *.exe
 *.out
 *.app
-
+*.dSYM
+main
 # Build directories
 build/
 Build/
