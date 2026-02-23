@@ -1,5 +1,6 @@
 #include "environment.hpp"
 
+std::string valuetypeintarray[] = {"Int", "String", "Boolean", "Array", "Object", "Null"}; 
 Environment::Environment()
     : parent(nullptr) {}
 
@@ -16,7 +17,7 @@ void Environment::declareVal (std::string varname, std::unique_ptr<RuntimeVal> v
 void Environment::assignVal (std::string varname, std::unique_ptr<RuntimeVal> value){
     Environment* env = resolve(varname);
     if(value->type != env->getVal(varname)->type){
-        throw std::runtime_error("Type error: Cannot assign value of type " + std::to_string(static_cast<int>(value->type)) + " to variable of type " + std::to_string(static_cast<int>(env->getVal(varname)->type)));
+        throw std::runtime_error("Type error: Cannot assign value of type " + valuetypeintarray[static_cast<int>(value->type)] + " to variable of type " + valuetypeintarray[static_cast<int>(env->getVal(varname)->type)]);
     }if(env->IsConst[varname]){
         throw std::runtime_error("Assignment error: Cannot assign to constant variable '" + varname + "'");
     }

@@ -66,7 +66,8 @@ Stmt* Parser::ParseVarDecl() {
             tem = te1;
         }
         if(tem.type!=TokenType::TypeIdent){
-
+            throw std::runtime_error("Expected type identifier in variable declaration\n");
+            return new VarDecl(ValueType::Null,"INVALID");
         }
         if(tem.value=="int"){
             type=ValueType::Integer;
@@ -85,7 +86,7 @@ Stmt* Parser::ParseVarDecl() {
     Token name = eat();
     if (name.type != TokenType::Identifier) {
         throw std::runtime_error("Expected identifier in variable declaration\n");
-        return new VarDecl("INVALID");
+        return new VarDecl(ValueType::Null,"INVALID");
     }
 
     Expr* initializer = nullptr;
@@ -104,10 +105,10 @@ Stmt* Parser::ParseVarDecl() {
     else{
         throw std::runtime_error("Syntax Error: Expected ';' at the end of statement, but found '" + peek().value + "'");
     }
-    return new VarDecl(name.value, initializer, isc);
+    return new VarDecl(type, name.value, initializer, isc);
 }
 
-
+ 
 
 
 /* =======================

@@ -1,6 +1,7 @@
 #include<string>
 #include<vector>
 #include<memory>
+#include<fstream>
 #include"parser.hpp"
 #include<iostream>
 #include"interpreter.hpp"
@@ -20,11 +21,7 @@ void printAST(Stmt* node, int indent = 0) {
     // add cases for BinaryExpr, BlockStmt, etc.
 }
 
-
-int main() {
-    cout << "KWL TERMINAL INTERPRETER V -1.0.0" << endl;
-    cout << "Init:" << endl;
-    cout << "░█ ▄▀ ░█  ░█ ░█   \n░█▀▄  ░█░█░█ ░█   \n░█ ░█ ░█▄▀▄█ ░█▄▄█"<< endl;
+int repl() {
     Parser parser;
     Environment env; 
     while(true) {
@@ -45,4 +42,48 @@ int main() {
         unique_ptr<RuntimeVal> result = Eval(&program, env);
         result->print();
         cout << endl;
-}}
+}
+}
+
+int processFile(const string& filename) {
+    Parser parser;
+    Environment env; 
+    ifstream file(filename);
+    if (!file.is_open()) {
+        cerr << "Error: Could not open file " << filename << endl;
+        return 1;
+    }
+    string sourcecode((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+    file.close();
+    Program program = parser.produceAST(sourcecode);
+    unique_ptr<RuntimeVal> result = Eval(&program, env);
+    result->print();
+    cout << endl;
+    return 0;
+}
+
+    int main() {
+    cout << "KWL TERMINAL INTERPRETER V -1.0.0" << endl;
+    cout << "Init:" << endl;
+    cout << "░█ ▄▀ ░█  ░█ ░█   \n░█▀▄  ░█░█░█ ░█   \n░█ ░█ ░█▄▀▄█ ░█▄▄█"<< endl;
+    cout << "Open repl or run a file with 'kwl <filename>? 'repl/file'" << endl;
+    string mode;
+    getline(cin, mode);
+    if (mode == "repl") {
+        return repl();
+    } else if (mode == "file") {
+        cout << "Enter filename: ";
+        string filename;
+        getline(cin, filename);
+        if(filename.empty()){
+            cerr << "Error: No filename provided." << endl;
+            return 1;
+        }else if(filename.find(".kwl") == string::npos){
+            cerr << "Error: Invalid file type. Please provide a .kwl file." << endl;
+            return 1;
+        }
+        return processFile(filename);
+    } else {
+        cerr << "Invalid mode. Please enter 'repl' or 'file'." << endl;
+        return 1;}
+    }

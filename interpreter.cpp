@@ -148,7 +148,20 @@ std::unique_ptr<RuntimeVal> EvalVarDecl(VarDecl decl, Environment& env){
     if(decl.value!=nullptr){
         initVal = Eval(decl.value, env);
     }else{
-        initVal = std::make_unique<Nullval>();
+        switch(decl.type){
+            case ValueType::Integer:
+                initVal = std::make_unique<IntVal>(0);
+                break;
+            case ValueType::Float:
+                initVal = std::make_unique<FloatVal>(0.0);
+                break;
+            case ValueType::String:
+                initVal = std::make_unique<StringVal>("");
+                break;
+            default:
+                initVal = std::make_unique<Nullval>();
+        }
+        // initVal = std::make_unique<Nullval>();
     }
     env.declareVal(decl.name, std::move(initVal), decl.immutable);
     return std::make_unique<Nullval>();

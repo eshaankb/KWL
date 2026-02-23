@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include "values.hpp"
 using namespace std;
 
 enum class NodeType {
@@ -115,14 +116,12 @@ public:
 class VarDecl : public Stmt {
 public:
     string name;
-    Expr* value;
+    Expr* value; 
     bool immutable;
+    ValueType type;
 
-    VarDecl(const string& n, Expr* init = nullptr, bool immut = false)
-        : Stmt(NodeType::VariableDeclaration),
-          name(n),
-          value(init),
-          immutable(immut) {}
+   VarDecl(ValueType tp, const string& n, Expr* init = nullptr, bool immut = false)
+        : type(tp), Stmt(NodeType::VariableDeclaration), name(n), value(init), immutable(immut) {}
 };
 
 class Assignment : public Expr {
