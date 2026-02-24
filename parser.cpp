@@ -79,6 +79,8 @@ Stmt* Parser::ParseVarDecl() {
             type=ValueType::Float;
         }if(tem.value=="string"){
             type=ValueType::String;
+        }if(tem.value=="bool"){
+            type=ValueType::Bool;
         }
     //add size support for each
     }

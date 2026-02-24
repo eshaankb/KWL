@@ -3,30 +3,29 @@
     "tasks": [
         {
             "type": "cppbuild",
-            "label": "C/C++: build active file",
-            "command": "g++",
-            "args": [ "-fdiagnostics-color=always",
+            "label": "C/C++: g++ build active file",
+            "command": "/usr/bin/g++",
+            "args": [
+                "-fdiagnostics-color=always",
                 "-g",
                 "-std=c++20",
                 "main.cpp",
                 "parser.cpp",
-                "lexer.cpp", 
+                "lexer.cpp",
                 "ast.cpp",
                 "interpreter.cpp",
                 "environment.cpp",
                 "-o",
-                "main"],
+                "main"
+            ],
             "options": {
-                "cwd": "${workspaceFolder}"
+                "cwd": "${fileDirname}"
             },
             "problemMatcher": [
                 "$gcc"
             ],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
-            "detail": "Cross-platform C++20 build"
+            "group": "build",
+            "detail": "compiler: /usr/bin/g++ (C++20)"
         }
     ]
 }

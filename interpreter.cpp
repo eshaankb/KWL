@@ -88,8 +88,58 @@ IntVal EvalIntBExpr(IntVal left, IntVal right, std::string op){
     }
 }
 
+BoolVal EvalBoolBExpr(BoolVal left, BoolVal right, std::string op){
+    bool result=false;
+    bool works=false;
+    if(op=="&&"){
+        result = left.value&&right.value;
+        works=true;
+    }else if(op=="||"){
+        result = left.value||right.value;
+        works=true;
+    }
+    if(works){
+        return(BoolVal(result));
+    }else{
+       return(BoolVal(false));
+    }
+}
+
+BoolVal EvalCompBExpr(RuntimeVal& left, RuntimeVal& right, std::string op){
+    bool result=false;
+    bool works=false;
+    if(left.type==ValueType::Integer&&right.type==ValueType::Integer){
+        int lval=static_cast<IntVal&>(left).value;
+        int rval=static_cast<IntVal&>(right).value;
+        if(op=="=="){
+            result = lval==rval;
+            works=true;
+        }else if(op=="!="){
+            result = lval!=rval;
+            works=true;
+        }else if(op=="<"){
+            result = lval<rval;
+            works=true;
+        }else if(op==">"){
+            result = lval>rval;
+            works=true;
+        }else if(op=="<="){
+            result = lval<=rval;
+            works=true;
+        }else if(op==">="){
+            result = lval>=rval;
+            works=true;
+        }
+    }
+    if(works){
+        return(BoolVal(result));
+    }else{
+       return(BoolVal(false));
+    }
+}
+
 FloatVal EvalFloatBExpr(FloatVal left, FloatVal right, std::string op){
-    int result=0;
+    float result=0;
     bool works=false;
     if(op=="+"){
         result = left.value+right.value;
@@ -116,6 +166,11 @@ FloatVal EvalFloatBExpr(FloatVal left, FloatVal right, std::string op){
 std::unique_ptr<RuntimeVal> EvalBinaryExpr(BinaryExpr binop, Environment& env){
     std::unique_ptr<RuntimeVal> LHS = Eval(binop.left, env);
     std::unique_ptr<RuntimeVal> RHS = Eval(binop.right, env);
+    //== n= < > =< >=
+    if(binop.op=="=="||binop.op=="n="||binop.op=="<"||binop.op==">"||binop.op=="<="||binop.op==">="){
+        return(std::make_unique<BoolVal>(EvalCompBExpr(*LHS,*RHS,binop.op)));
+    }
+
     if(RHS->type==ValueType::Null||LHS->type==ValueType::Null){
         return(std::make_unique<Nullval>());
     }
@@ -124,20 +179,27 @@ std::unique_ptr<RuntimeVal> EvalBinaryExpr(BinaryExpr binop, Environment& env){
         if(RHS->type==LHS->type){
         return(std::make_unique<IntVal>(EvalIntBExpr(static_cast<IntVal&>(*LHS),static_cast<IntVal&>(*RHS),binop.op)));}
     }else if(RHS->type==ValueType::Float&&LHS->type==ValueType::Float){
-        return(std::make_unique<IntVal>(EvalIntBExpr(static_cast<IntVal&>(*LHS),static_cast<IntVal&>(*RHS),binop.op)));
+        return(std::make_unique<FloatVal>(EvalFloatBExpr(static_cast<FloatVal&>(*LHS),static_cast<FloatVal&>(*RHS),binop.op)));
+    }else if((RHS->type==ValueType::Integer&&LHS->type==ValueType::Float)||(RHS->type==ValueType::Float&&LHS->type==ValueType::Integer)){
+        FloatVal lval=(RHS->type==ValueType::Integer)? FloatVal(static_cast<IntVal&>(*LHS).value):static_cast<FloatVal&>(*LHS);
+        FloatVal rval=(RHS->type==ValueType::Integer)? FloatVal(static_cast<IntVal&>(*RHS).value):static_cast<FloatVal&>(*RHS);
+        return(std::make_unique<FloatVal>(EvalFloatBExpr(lval,rval,binop.op)));
+    }else if(RHS->type==ValueType::Bool&&LHS->type==ValueType::Bool){
+        return(std::make_unique<BoolVal>(EvalBoolBExpr(static_cast<BoolVal&>(*LHS),static_cast<BoolVal&>(*RHS),binop.op)));
     }
     return(std::make_unique<Nullval>());
 
 }
 
 std::unique_ptr<RuntimeVal> EvalIdentifier(Identifier identifier, Environment& env){
-    switch(env.getVal(identifier.name)->type){
+    auto val = env.getVal(identifier.name);
+    switch(val->type){
         case ValueType::Integer:
-            return std::make_unique<IntVal>(static_cast<IntVal&>(*env.getVal(identifier.name)));
+            return std::make_unique<IntVal>(static_cast<IntVal&>(*val));
         case ValueType::Float:
-            return std::make_unique<FloatVal>(static_cast<FloatVal&>(*env.getVal(identifier.name)));
+            return std::make_unique<FloatVal>(static_cast<FloatVal&>(*val));
         case ValueType::String:
-            return std::make_unique<StringVal>(static_cast<StringVal&>(*env.getVal(identifier.name)));
+            return std::make_unique<StringVal>(static_cast<StringVal&>(*val));
         default:
             return std::make_unique<Nullval>();
     }
@@ -157,6 +219,9 @@ std::unique_ptr<RuntimeVal> EvalVarDecl(VarDecl decl, Environment& env){
                 break;
             case ValueType::String:
                 initVal = std::make_unique<StringVal>("");
+                break;
+            case ValueType::Bool:
+                initVal = std::make_unique<BoolVal>(false);
                 break;
             default:
                 initVal = std::make_unique<Nullval>();
@@ -183,8 +248,13 @@ std::unique_ptr<RuntimeVal> Eval(Stmt* astNode, Environment& env){
                 return std::make_unique<IntVal>(std::stoi(lit->value));
             else if(type == LiteralType::Float)
                 return std::make_unique<FloatVal>(std::stof(lit->value));
-            else
+            else if(type == LiteralType::String)
                 return std::make_unique<StringVal>(lit->value);
+            else if(type == LiteralType::Boolean)
+                return std::make_unique<BoolVal>(lit->value == "true");
+            else
+                {return std::make_unique<Nullval>(); }
+            break;
         }
         case NodeType::VariableDeclaration: {
             auto* decl = dynamic_cast<VarDecl*>(astNode);

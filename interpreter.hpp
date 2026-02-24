@@ -9,6 +9,7 @@ enum class LiteralType {
     Integer,
     Float,
     String,
+    Boolean,
     Invalid
 };
 
