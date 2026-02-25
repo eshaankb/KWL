@@ -27,10 +27,17 @@ string valueTypeName(ValueType t) {
 LiteralType classifyLiteral(const std::string& s) {
     if (s.empty()) return LiteralType::Invalid;
 
+    // Boolean check
+    if (s == "true" || s == "false") {
+        return LiteralType::Boolean;
+    }
+
     // Check for quoted string
     if (s.size() >= 2 && s.front() == '"' && s.back() == '"') {
         return LiteralType::String;
     }
+
+    // Try integer
     {
         int value;
         auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), value);
@@ -91,10 +98,10 @@ IntVal EvalIntBExpr(IntVal left, IntVal right, std::string op){
 BoolVal EvalBoolBExpr(BoolVal left, BoolVal right, std::string op){
     bool result=false;
     bool works=false;
-    if(op=="&&"){
+    if(op=="and"){
         result = left.value&&right.value;
         works=true;
-    }else if(op=="||"){
+    }else if(op=="or"){
         result = left.value||right.value;
         works=true;
     }
@@ -111,8 +118,9 @@ BoolVal EvalCompBExpr(RuntimeVal& left, RuntimeVal& right, std::string op){
     if(left.type==ValueType::Integer&&right.type==ValueType::Integer){
         int lval=static_cast<IntVal&>(left).value;
         int rval=static_cast<IntVal&>(right).value;
+        // std::cout<<"Comparing "<<lval<<" and "<<rval<<" with =="<<std::endl;
         if(op=="=="){
-            result = lval==rval;
+            result = (lval==rval);
             works=true;
         }else if(op=="!="){
             result = lval!=rval;
@@ -128,6 +136,52 @@ BoolVal EvalCompBExpr(RuntimeVal& left, RuntimeVal& right, std::string op){
             works=true;
         }else if(op==">="){
             result = lval>=rval;
+            works=true;
+        }
+    }else if(left.type==ValueType::Float&&right.type==ValueType::Float){
+        float lval=static_cast<FloatVal&>(left).value;
+        float rval=static_cast<FloatVal&>(right).value;
+            // std::cout<<"Comparing "<<lval<<" and "<<rval<<" with =="<<std::endl;
+        if(op=="=="){
+            result = (lval==rval);
+            works=true;
+        }else if(op=="!="){
+            result = lval!=rval;
+            works=true;
+        }
+        else if(op=="<"){
+            result = lval<rval;
+            works=true;
+        }else if(op==">"){
+            result = lval>rval;
+            works=true;
+        }else if(op=="<="){
+            result = lval<=rval;
+            works=true;       }
+            else if(op==">="){
+            result = lval>=rval;
+            works=true;
+        }
+    }else if(left.type==ValueType::String&&right.type==ValueType::String){
+        std::string lval=static_cast<StringVal&>(left).value;
+        std::string rval=static_cast<StringVal&>(right).value;
+            // std::cout<<"Comparing "<<lval<<" and "<<rval<<" with =="<<std::endl;
+        if(op=="=="){
+            result = (lval==rval);
+            works=true;
+        }else if(op=="!="){
+            result = lval!=rval;
+            works=true;
+        }
+    }else if(left.type==ValueType::Bool&&right.type==ValueType::Bool){
+        bool lval=static_cast<BoolVal&>(left).value;
+        bool rval=static_cast<BoolVal&>(right).value;
+            // std::cout<<"Comparing "<<lval<<" and "<<rval<<" with =="<<std::endl;
+        if(op=="=="){
+            result = (lval==rval);
+            works=true;
+        }else if(op=="!="){
+            result = lval!=rval;
             works=true;
         }
     }
@@ -165,7 +219,27 @@ FloatVal EvalFloatBExpr(FloatVal left, FloatVal right, std::string op){
 
 std::unique_ptr<RuntimeVal> EvalBinaryExpr(BinaryExpr binop, Environment& env){
     std::unique_ptr<RuntimeVal> LHS = Eval(binop.left, env);
+    // std::cerr<<"Evaluating binary expression with operator "<<binop.op<<" and left operand of type "<<valueTypeName(LHS->type)<<std::endl;
+    if(binop.op=="and"||binop.op=="or"){
+        if(!(LHS->type==ValueType::Bool)){
+            throw std::runtime_error("Type Error: Logical operators require boolean operands");
+        }else if(binop.op=="and"&&static_cast<BoolVal&>(*LHS).value==false){
+            return(std::make_unique<BoolVal>(false));
+        }else if(binop.op=="or"&&static_cast<BoolVal&>(*LHS).value==true){
+            return(std::make_unique<BoolVal>(true));
+    }}
+
     std::unique_ptr<RuntimeVal> RHS = Eval(binop.right, env);
+    if(binop.op=="and"||binop.op=="or"){
+    if(RHS->type!=ValueType::Bool){
+        throw std::runtime_error("Type Error: Logical operators require boolean operands");
+    }else if(binop.op=="and"){
+        return(std::make_unique<BoolVal>(static_cast<BoolVal&>(*LHS).value&&static_cast<BoolVal&>(*RHS).value));
+    }else if(binop.op=="or"){
+        return(std::make_unique<BoolVal>(static_cast<BoolVal&>(*LHS).value||static_cast<BoolVal&>(*RHS).value));
+    }
+}
+        
     //== n= < > =< >=
     if(binop.op=="=="||binop.op=="n="||binop.op=="<"||binop.op==">"||binop.op=="<="||binop.op==">="){
         return(std::make_unique<BoolVal>(EvalCompBExpr(*LHS,*RHS,binop.op)));
@@ -200,6 +274,8 @@ std::unique_ptr<RuntimeVal> EvalIdentifier(Identifier identifier, Environment& e
             return std::make_unique<FloatVal>(static_cast<FloatVal&>(*val));
         case ValueType::String:
             return std::make_unique<StringVal>(static_cast<StringVal&>(*val));
+        case ValueType::Bool:
+            return std::make_unique<BoolVal>(static_cast<BoolVal&>(*val));
         default:
             return std::make_unique<Nullval>();
     }

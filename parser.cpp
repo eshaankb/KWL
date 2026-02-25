@@ -220,6 +220,11 @@ Expr* Parser::ParsePrimExpr() {
 
 int Parser::getPrecedence(const Token& tok) {
     switch (tok.type) {
+        case TokenType::LogicalOp:
+            if (tok.value == "and") return 3;
+            if (tok.value == "or") return 2;
+            if (tok.value == "nt") return 4;
+            return 0;
         case TokenType::ArithmeticOp:
             if (tok.value == "+" || tok.value == "-") return 10;
             if (tok.value == "*" || tok.value == "/") return 20;

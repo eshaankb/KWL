@@ -91,6 +91,9 @@ vector<Token> tokenize(string sourcecode) {
             else if (isType(keyw))
                 {tokens.push_back(Token(keyw, TokenType::TypeIdent));}
             else if (isKeyword(keyw))
+                if(keyw=="and"||keyw=="or"||keyw=="nt")
+                    {tokens.push_back(Token(keyw, TokenType::LogicalOp));}
+                else
                 {tokens.push_back(Token(keyw, TokenType::Keyword));}
             else
                 {tokens.push_back(Token(keyw, TokenType::Identifier));}
