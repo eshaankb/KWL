@@ -284,7 +284,13 @@ std::unique_ptr<RuntimeVal> EvalIdentifier(Identifier identifier, Environment& e
 std::unique_ptr<RuntimeVal> EvalVarDecl(VarDecl decl, Environment& env){
     std::unique_ptr<RuntimeVal> initVal;
     if(decl.value!=nullptr){
+        // if(decl.type!=decl.value){
+        //     // throw std::runtime_error("Type Error: Variable declaration type does not match initializer type");
+        // }
         initVal = Eval(decl.value, env);
+        if (initVal->type != decl.type) {
+            throw std::runtime_error("Type Error: Variable declaration type does not match initializer type");
+        }
     }else{
         switch(decl.type){
             case ValueType::Integer:
@@ -357,9 +363,7 @@ std::unique_ptr<RuntimeVal> Eval(Stmt* astNode, Environment& env){
             auto val = Eval(asgn->value, env);
             env.assignVal(ident->name, std::move(val)); 
             return env.getVal(ident->name)->clone();
-    }
-
-        default:
+        }default:
             std::cerr<<"Unimplemented AST node type in Eval: "<<static_cast<int>(astNode->kind)<<std::endl;
             return std::make_unique<Nullval>();
     }

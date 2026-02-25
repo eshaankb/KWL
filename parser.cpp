@@ -96,8 +96,8 @@ Stmt* Parser::ParseVarDecl() {
     if (peek().type == TokenType::AssignmentOp) {
         eat(); // =
         initializer = ParseExpr();
-    }
-    if(isc&&peek().type==TokenType::Backslash){
+
+    }if(isc&&peek().type==TokenType::Backslash){
         eat(); //consume bslash
     }else if(isc){
         throw std::runtime_error("Expected closing '\\' \n");

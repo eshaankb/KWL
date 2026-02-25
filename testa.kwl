@@ -1,0 +1,5 @@
+bool x;
+bool y;
+x =true;
+y=false;
+y==true;
