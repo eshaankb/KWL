@@ -6,6 +6,7 @@ enum class TokenType {
     Null,
     Identifier,
     Keyword,
+    BlockKeyword, //if lp etc 
     BuiltinIdentifier,
     TypeIdent,
     IntLiteral,

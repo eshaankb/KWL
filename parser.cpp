@@ -50,6 +50,31 @@ Stmt* Parser::ParseStmt() {
     return expr;
 }
 
+Stmt* Parser::parseBlock() {
+    Token control = eat();
+    if (control.type != TokenType::BlockKeyword) {
+        throw std::runtime_error("Expected block keyword (if, lp, etc.)\n");
+        return new BlockStmt(); // return empty block on error
+    }
+    if(peek().type!=TokenType::Backslash){
+        throw std::runtime_error("Expected opening '\\' for condition block\n");
+        return new BlockStmt();
+    }
+    eat(); // consume backslash
+    Expr* condition = ParseExpr();
+    if(condition==nullptr){
+        throw std::runtime_error("Expected condition expression after block keyword\n");
+        return new BlockStmt();
+    }
+    // if(control.value=="if"&&condition->kind!=NodeType::Literal){
+    //     throw std::runtime_error("Expected literal condition for if statement\n");
+    //     return new BlockStmt();
+    // }
+
+}
+
+
+
 Stmt* Parser::ParseVarDecl() {
     // consume type
     ValueType type;

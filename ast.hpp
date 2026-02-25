@@ -18,6 +18,7 @@ enum class NodeType {
     CallExpression,
     IndexExpression,
     IfStatement,
+    ElseStatement,
     WhileStatement,
     ReturnStatement,
     BuiltinCall,
@@ -45,12 +46,26 @@ public:
     vector<Stmt*> body;
     Program() : Stmt(NodeType::Program) {}
 };
-
 class BlockStmt : public Stmt {
 public:
     vector<Stmt*> body;
     BlockStmt() : Stmt(NodeType::BlockStatement) {}
 };
+class IfStmt : public Stmt {
+public:
+    Expr* condition;
+    BlockStmt* body;
+
+    IfStmt(Expr* cond, BlockStmt* b) : Stmt(NodeType::IfStatement), condition(cond), body(b) {}
+};
+class ElseStmt : public Stmt {
+public:
+    BlockStmt* body;
+
+    ElseStmt(BlockStmt* b) : Stmt(NodeType::ElseStatement), body(b) {}
+};
+
+
 
 class BinaryExpr : public Expr {
 public:

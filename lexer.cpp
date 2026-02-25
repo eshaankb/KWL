@@ -10,7 +10,12 @@
 //static_assert(__cplusplus >= 202002L, "C++20 not enabled");
 using namespace std;
 
-
+bool isBlockKeyword(const string& s) {
+    static const vector<string> blockKeywords = {
+        "if", "lp", "el"
+    };
+    return find(blockKeywords.begin(), blockKeywords.end(), s) != blockKeywords.end();
+}
 bool isKeyword(const string& s) {
     static const vector<string> keywords = {
         "and", "or", "nt", "mod", "gbl", "mkimmutable"
@@ -84,6 +89,8 @@ vector<Token> tokenize(string sourcecode) {
                 keyw += src[0];
                 src.erase(src.begin());
             }
+            if(isBlockKeyword(keyw)){
+                tokens.push_back(Token(keyw, TokenType::BlockKeyword));}
             if (isBoolLiteral(keyw))
                 {tokens.push_back(Token(keyw, TokenType::BoolLiteral));}
             else if (isNullLiteral(keyw))
@@ -209,6 +216,7 @@ string tokenTypeName(TokenType t) {
         case TokenType::CommentBlock: return "CommentBlock";
         case TokenType::EndOfFile: return "EndOfFile";
         case TokenType::Invalid: return "Invalid";
+        case TokenType::BlockKeyword: return "BlockKeyword";
     }
     return "Unknown";
 }
