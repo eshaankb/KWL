@@ -65,6 +65,20 @@ std::unique_ptr<RuntimeVal> EvalProgram(Program* prog,Environment& env) {
     }
     return (result);
 }
+
+std::unique_ptr<RuntimeVal> EvalIfStmt(IfStmt* ifstmt, Environment& env) {
+    auto condVal = Eval(ifstmt->condition, env);
+    if (condVal->type != ValueType::Bool) {
+        throw std::runtime_error("Type Error: Condition in if statement must evaluate to a boolean");
+    }
+    if (static_cast<BoolVal&>(*condVal).value) {
+        return Eval(ifstmt->body, env);
+    } else if (ifstmt->elseBranch != nullptr) {
+        return Eval(ifstmt->elseBranch, env);
+    } else {
+        return std::make_unique<Nullval>();
+    }
+}
 /*
 ========================
 EVALUATION FUNCTIONS
@@ -320,9 +334,32 @@ std::unique_ptr<RuntimeVal> EvalVarDecl(VarDecl decl, Environment& env){
 INTERPRETER
 ========================
 */
+std::string printNodeType(NodeType t){
+    switch(t){
+        case NodeType::Program: return "Program";
+        case NodeType::BlockStatement: return "BlockStatement";
+        case NodeType::VariableDeclaration: return "VariableDeclaration";
+        case NodeType::Assignment: return "Assignment";
+        case NodeType::BinaryExpression: return "BinaryExpression";
+        case NodeType::UnaryExpression: return "UnaryExpression";
+        case NodeType::Literal: return "Literal";
+        case NodeType::Identifier: return "Identifier";
+        case NodeType::CallExpression: return "CallExpression";
+        case NodeType::IndexExpression: return "IndexExpression";
+        case NodeType::IfStatement: return "IfStatement";
+        case NodeType::ElseStatement: return "ElseStatement";
+        case NodeType::WhileStatement: return "WhileStatement";
+        case NodeType::ReturnStatement: return "ReturnStatement";
+        case NodeType::BuiltinCall: return "BuiltinCall";
+        default: return "UnknownNodeType";
+    }
+}
 
 std::unique_ptr<RuntimeVal> Eval(Stmt* astNode, Environment& env){
     switch(astNode->kind){
+        case NodeType::IfStatement: {
+            return EvalIfStmt(dynamic_cast<IfStmt*>(astNode), env);
+        }
         case NodeType::Literal: {
             auto* lit = dynamic_cast<Literal*>(astNode);
             auto type = classifyLiteral(lit->value);
@@ -364,7 +401,7 @@ std::unique_ptr<RuntimeVal> Eval(Stmt* astNode, Environment& env){
             env.assignVal(ident->name, std::move(val)); 
             return env.getVal(ident->name)->clone();
         }default:
-            std::cerr<<"Unimplemented AST node type in Eval: "<<static_cast<int>(astNode->kind)<<std::endl;
+            std::cerr<<"Unimplemented AST node type in Eval: "<<printNodeType(astNode->kind)<<std::endl;
             return std::make_unique<Nullval>();
     }
 }

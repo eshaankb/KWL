@@ -51,19 +51,21 @@ public:
     vector<Stmt*> body;
     BlockStmt() : Stmt(NodeType::BlockStatement) {}
 };
-class IfStmt : public Stmt {
-public:
-    Expr* condition;
-    BlockStmt* body;
-
-    IfStmt(Expr* cond, BlockStmt* b) : Stmt(NodeType::IfStatement), condition(cond), body(b) {}
-};
 class ElseStmt : public Stmt {
 public:
     BlockStmt* body;
 
     ElseStmt(BlockStmt* b) : Stmt(NodeType::ElseStatement), body(b) {}
 };
+class IfStmt : public Stmt {
+public:
+    Expr* condition;
+    BlockStmt* body;
+    ElseStmt* elseBranch;
+
+    IfStmt(Expr* cond, BlockStmt* b, ElseStmt* e = nullptr) : Stmt(NodeType::IfStatement), condition(cond), body(b), elseBranch(e) {}
+};
+
 
 
 
@@ -146,19 +148,6 @@ public:
 
     Assignment(Expr* t, Expr* val)
         : Expr(NodeType::Assignment), target(t), value(val) {}
-};
-
-class IfStmt : public Stmt {
-public:
-    Expr* condition;
-    Stmt* thenBranch;
-    Stmt* elseBranch;
-
-    IfStmt(Expr* cond, Stmt* thenB, Stmt* elseB = nullptr)
-        : Stmt(NodeType::IfStatement),
-          condition(cond),
-          thenBranch(thenB),
-          elseBranch(elseB) {}
 };
 
 class WhileStmt : public Stmt {

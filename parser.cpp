@@ -1,5 +1,6 @@
 #include "parser.hpp"
 #include"values.hpp"
+#include<string>
 #include <stdexcept>
 
 using namespace std;
@@ -24,6 +25,7 @@ Token& Parser::peek(int offset) {
     return tokens[offset];
 }
 
+
 Token Parser::eat() {
     Token prev = tokens[0];
     tokens.erase(tokens.begin());
@@ -36,42 +38,81 @@ Token Parser::eat() {
 
 Stmt* Parser::ParseStmt() {
     // variable declaration: int x = ...
-    if (peek().type == TokenType::TypeIdent || 
+    Stmt* stmt = nullptr;
+    if(peek().type == TokenType::BlockKeyword && peek().value=="if"){
+        stmt = parseIf();}
+    else if (peek().type == TokenType::TypeIdent || 
        (peek().type == TokenType::Keyword && peek().value == "mkimmutable")) {
-        return ParseVarDecl();
-    }
+        stmt= ParseVarDecl();
+    }else{
 
     // fallback: expression statement
-    Expr* expr = ParseExpr();
-
+    stmt = ParseExpr();}
     if (peek().type == TokenType::Semicolon)
         eat();
-
-    return expr;
+    else{
+        throw std::runtime_error("Syntax Error: Expected ';' at the end of statement, but found '" + peek().value + "'");
+    }
+    return stmt;
 }
 
-Stmt* Parser::parseBlock() {
+Stmt* Parser::parseIf() {
     Token control = eat();
-    if (control.type != TokenType::BlockKeyword) {
-        throw std::runtime_error("Expected block keyword (if, lp, etc.)\n");
-        return new BlockStmt(); // return empty block on error
-    }
     if(peek().type!=TokenType::Backslash){
         throw std::runtime_error("Expected opening '\\' for condition block\n");
-        return new BlockStmt();
+        return new IfStmt(nullptr, nullptr);
     }
     eat(); // consume backslash
     Expr* condition = ParseExpr();
+
     if(condition==nullptr){
         throw std::runtime_error("Expected condition expression after block keyword\n");
-        return new BlockStmt();
+        return new IfStmt(nullptr, nullptr);
     }
+    if(peek().type!=TokenType::Backslash){
+        throw std::runtime_error("Expected backslash\n");
+        return new IfStmt(nullptr, nullptr);
+    }
+    eat();
+    Stmt* body = parseBlock();
+    if(body==nullptr){
+        throw std::runtime_error("Expected block statement for if body\n");
+        return new IfStmt(condition, nullptr);
+    }
+    // if(condition->kind==NodeType::Literal&&condition)
+
+
     // if(control.value=="if"&&condition->kind!=NodeType::Literal){
     //     throw std::runtime_error("Expected literal condition for if statement\n");
     //     return new BlockStmt();
     // }
+    return new IfStmt(condition, static_cast<BlockStmt*>(body));
 
 }
+
+Stmt* Parser::parseBlock() {
+    auto block = new BlockStmt();
+    if(peek().type!=TokenType::LBracket){
+        throw std::runtime_error("Expected opening '[' for block\n");
+        return new BlockStmt();
+    }else{
+        eat(); // consume [
+    }
+    while(peek().type!=TokenType::RBracket){
+        if(peek().type==TokenType::EndOfFile){
+            throw std::runtime_error("Unexpected end of file while parsing block\n");
+            return new BlockStmt();
+        }
+        block->body.push_back(ParseStmt());
+    }
+    if(peek().type!=TokenType::RBracket){
+        throw std::runtime_error("Expected closing ']' for block\n");
+        return new BlockStmt();
+    }
+    eat(); // consume ]
+    return block;
+}
+
 
 
 
@@ -126,11 +167,6 @@ Stmt* Parser::ParseVarDecl() {
         eat(); //consume bslash
     }else if(isc){
         throw std::runtime_error("Expected closing '\\' \n");
-    }
-    if (peek().type == TokenType::Semicolon)
-        eat();
-    else{
-        throw std::runtime_error("Syntax Error: Expected ';' at the end of statement, but found '" + peek().value + "'");
     }
     return new VarDecl(type, name.value, initializer, isc);
 }
@@ -201,7 +237,7 @@ Expr* Parser::ParsePrimExpr() {
             throw std::runtime_error("UNEXPECTED TOKEN: "+tok.value+'\n');
             return new Literal("INVALID");
     }
-    // Handle postfix expressions: calls and indexing
+    // // Handle postfix expressions: calls and indexing
     while (true) {
         // function call: expr , arg1 ; arg2 bslash
         if (peek().type == TokenType::Comma) {

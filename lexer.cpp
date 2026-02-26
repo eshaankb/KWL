@@ -91,7 +91,7 @@ vector<Token> tokenize(string sourcecode) {
             }
             if(isBlockKeyword(keyw)){
                 tokens.push_back(Token(keyw, TokenType::BlockKeyword));}
-            if (isBoolLiteral(keyw))
+            else if (isBoolLiteral(keyw))
                 {tokens.push_back(Token(keyw, TokenType::BoolLiteral));}
             else if (isNullLiteral(keyw))
                 {tokens.push_back(Token(keyw, TokenType::Null));}
