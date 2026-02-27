@@ -1,6 +1,5 @@
 #include<string>
 #include<vector>
-#include<memory>
 #include<fstream>
 #include"parser.hpp"
 #include<iostream>
@@ -9,6 +8,27 @@
 #include"values.hpp"
 #include"environment.hpp"
 using namespace std;
+string nodeTypeName(NodeType t) {
+    switch(t){
+        case NodeType::Program: return "Program";
+        case NodeType::BlockStatement: return "BlockStatement";
+        case NodeType::VariableDeclaration: return "VariableDeclaration";
+        case NodeType::Assignment: return "Assignment";
+        case NodeType::BinaryExpression: return "BinaryExpression";
+        case NodeType::UnaryExpression: return "UnaryExpression";
+        case NodeType::Literal: return "Literal";
+        case NodeType::Identifier: return "Identifier";
+        case NodeType::CallExpression: return "CallExpression";
+        case NodeType::IndexExpression: return "IndexExpression";
+        case NodeType::IfStatement: return "IfStatement";
+        case NodeType::ElseStatement: return "ElseStatement";
+        case NodeType::WhileStatement: return "WhileStatement";
+        case NodeType::ReturnStatement: return "ReturnStatement";
+        case NodeType::BuiltinCall: return "BuiltinCall";
+        default: return "UnknownNodeType";
+    }
+};
+
 void printAST(Stmt* node, int indent = 0) {
     string pad(indent, ' ');
     cout << pad << nodeTypeName(node->kind) << endl;
@@ -39,7 +59,7 @@ int repl() {
             //cout << "Interpreted Value: " << Eval(program.body[0]).type << endl;
             printAST(stmt);
         }
-        unique_ptr<RuntimeVal> result = Eval(&program, env);
+        RuntimeVal* result = Eval(&program, env);
         result->print();
         cout << endl;
 }
@@ -56,7 +76,7 @@ int processFile(const string& filename) {
     string sourcecode((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
     file.close();
     Program program = parser.produceAST(sourcecode);
-    unique_ptr<RuntimeVal> result = Eval(&program, env);
+    RuntimeVal* result = Eval(&program, env);
     result->print();
     cout << endl;
     return 0;

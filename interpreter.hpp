@@ -1,7 +1,6 @@
 #include"values.hpp"
 #include"ast.hpp"
 #include<string>
-#include<memory>
 #include "environment.hpp"
 #pragma once
 
@@ -13,11 +12,11 @@ enum class LiteralType {
     Invalid
 };
 
-std::unique_ptr<RuntimeVal> Eval(Stmt* astNode, Environment& env) ;
-std::unique_ptr<RuntimeVal> EvalBinaryExpr(BinaryExpr binop, Environment& env);
+RuntimeVal* Eval(Stmt* astNode, Environment& env) ;
+RuntimeVal* EvalBinaryExpr(BinaryExpr binop, Environment& env);
 FloatVal EvalFloatBExpr(FloatVal left, FloatVal right, std::string op);
 IntVal EvalIntBExpr(IntVal left, IntVal right, std::string op);
-std::unique_ptr<RuntimeVal> EvalIdentifier(Identifier identifier, Environment& env);
-std::unique_ptr<RuntimeVal> EvalProgram(Program* prog, Environment& env);
+RuntimeVal* EvalIdentifier(Identifier identifier, Environment& env);
+RuntimeVal* EvalProgram(Program* prog, Environment& env);
 
 LiteralType cLiteral(std::string s);

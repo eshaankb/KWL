@@ -25,7 +25,6 @@ enum class NodeType {
     NullLiteral,
 };
 
-string nodeTypeName(NodeType t);
 
 
 class Stmt {

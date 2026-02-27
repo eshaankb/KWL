@@ -1,7 +1,6 @@
 #include<string>
 #include <charconv>
 #include <cctype>
-#include<memory>
 #include"values.hpp"
 #include"ast.hpp"
 #include"interpreter.hpp"
@@ -58,25 +57,27 @@ LiteralType classifyLiteral(const std::string& s) {
     return LiteralType::Invalid;
 }
 
-std::unique_ptr<RuntimeVal> EvalProgram(Program* prog,Environment& env) {
-    std::unique_ptr<RuntimeVal> result = std::make_unique<Nullval>();
+RuntimeVal* EvalProgram(Program* prog,Environment& env) {
+    RuntimeVal* result = new Nullval();
     for (auto stmt : prog->body) {
         result = Eval(stmt, env);
     }
     return (result);
 }
 
-std::unique_ptr<RuntimeVal> EvalIfStmt(IfStmt* ifstmt, Environment& env) {
+RuntimeVal* EvalIfStmt(IfStmt* ifstmt, Environment& env) {
     auto condVal = Eval(ifstmt->condition, env);
     if (condVal->type != ValueType::Bool) {
         throw std::runtime_error("Type Error: Condition in if statement must evaluate to a boolean");
     }
     if (static_cast<BoolVal&>(*condVal).value) {
-        return Eval(ifstmt->body, env);
+        Environment localEnv(&env); // create a new environment for the if block
+        return Eval(ifstmt->body, localEnv);
     } else if (ifstmt->elseBranch != nullptr) {
-        return Eval(ifstmt->elseBranch, env);
+        Environment localEnv(&env); // create a new environment for the if block
+        return Eval(ifstmt->elseBranch, localEnv);
     } else {
-        return std::make_unique<Nullval>();
+        return new Nullval();
     }
 }
 /*
@@ -231,72 +232,72 @@ FloatVal EvalFloatBExpr(FloatVal left, FloatVal right, std::string op){
 }
 
 
-std::unique_ptr<RuntimeVal> EvalBinaryExpr(BinaryExpr binop, Environment& env){
-    std::unique_ptr<RuntimeVal> LHS = Eval(binop.left, env);
+RuntimeVal* EvalBinaryExpr(BinaryExpr binop, Environment& env){
+    RuntimeVal* LHS = Eval(binop.left, env);
     // std::cerr<<"Evaluating binary expression with operator "<<binop.op<<" and left operand of type "<<valueTypeName(LHS->type)<<std::endl;
     if(binop.op=="and"||binop.op=="or"){
         if(!(LHS->type==ValueType::Bool)){
             throw std::runtime_error("Type Error: Logical operators require boolean operands");
         }else if(binop.op=="and"&&static_cast<BoolVal&>(*LHS).value==false){
-            return(std::make_unique<BoolVal>(false));
+            return(new BoolVal(false));
         }else if(binop.op=="or"&&static_cast<BoolVal&>(*LHS).value==true){
-            return(std::make_unique<BoolVal>(true));
+            return(new BoolVal(true));
     }}
 
-    std::unique_ptr<RuntimeVal> RHS = Eval(binop.right, env);
+    RuntimeVal* RHS = Eval(binop.right, env);
     if(binop.op=="and"||binop.op=="or"){
     if(RHS->type!=ValueType::Bool){
         throw std::runtime_error("Type Error: Logical operators require boolean operands");
     }else if(binop.op=="and"){
-        return(std::make_unique<BoolVal>(static_cast<BoolVal&>(*LHS).value&&static_cast<BoolVal&>(*RHS).value));
+        return(new BoolVal(static_cast<BoolVal&>(*LHS).value&&static_cast<BoolVal&>(*RHS).value));
     }else if(binop.op=="or"){
-        return(std::make_unique<BoolVal>(static_cast<BoolVal&>(*LHS).value||static_cast<BoolVal&>(*RHS).value));
+        return(new BoolVal(static_cast<BoolVal&>(*LHS).value||static_cast<BoolVal&>(*RHS).value));
     }
 }
         
     //== n= < > =< >=
     if(binop.op=="=="||binop.op=="n="||binop.op=="<"||binop.op==">"||binop.op=="<="||binop.op==">="){
-        return(std::make_unique<BoolVal>(EvalCompBExpr(*LHS,*RHS,binop.op)));
+        return(new BoolVal(EvalCompBExpr(*LHS,*RHS,binop.op)));
     }
 
     if(RHS->type==ValueType::Null||LHS->type==ValueType::Null){
-        return(std::make_unique<Nullval>());
+        return(new Nullval());
     }
     else if(RHS->type==ValueType::Integer||LHS->type==ValueType::Integer){
         //return 
         if(RHS->type==LHS->type){
-        return(std::make_unique<IntVal>(EvalIntBExpr(static_cast<IntVal&>(*LHS),static_cast<IntVal&>(*RHS),binop.op)));}
+        return(new IntVal(EvalIntBExpr(static_cast<IntVal&>(*LHS),static_cast<IntVal&>(*RHS),binop.op)));}
     }else if(RHS->type==ValueType::Float&&LHS->type==ValueType::Float){
-        return(std::make_unique<FloatVal>(EvalFloatBExpr(static_cast<FloatVal&>(*LHS),static_cast<FloatVal&>(*RHS),binop.op)));
+        return(new FloatVal(EvalFloatBExpr(static_cast<FloatVal&>(*LHS),static_cast<FloatVal&>(*RHS),binop.op)));
     }else if((RHS->type==ValueType::Integer&&LHS->type==ValueType::Float)||(RHS->type==ValueType::Float&&LHS->type==ValueType::Integer)){
         FloatVal lval=(RHS->type==ValueType::Integer)? FloatVal(static_cast<IntVal&>(*LHS).value):static_cast<FloatVal&>(*LHS);
         FloatVal rval=(RHS->type==ValueType::Integer)? FloatVal(static_cast<IntVal&>(*RHS).value):static_cast<FloatVal&>(*RHS);
-        return(std::make_unique<FloatVal>(EvalFloatBExpr(lval,rval,binop.op)));
+        return(new FloatVal(EvalFloatBExpr(lval,rval,binop.op)));
     }else if(RHS->type==ValueType::Bool&&LHS->type==ValueType::Bool){
-        return(std::make_unique<BoolVal>(EvalBoolBExpr(static_cast<BoolVal&>(*LHS),static_cast<BoolVal&>(*RHS),binop.op)));
+        return(new BoolVal(EvalBoolBExpr(static_cast<BoolVal&>(*LHS),static_cast<BoolVal&>(*RHS),binop.op)));
     }
-    return(std::make_unique<Nullval>());
+    return(new Nullval());
 
 }
 
-std::unique_ptr<RuntimeVal> EvalIdentifier(Identifier identifier, Environment& env){
+RuntimeVal* EvalIdentifier(Identifier identifier, Environment& env){
     auto val = env.getVal(identifier.name);
     switch(val->type){
         case ValueType::Integer:
-            return std::make_unique<IntVal>(static_cast<IntVal&>(*val));
+            return(new IntVal(static_cast<IntVal&>(*val)));
         case ValueType::Float:
-            return std::make_unique<FloatVal>(static_cast<FloatVal&>(*val));
+            return(new FloatVal(static_cast<FloatVal&>(*val)));
         case ValueType::String:
-            return std::make_unique<StringVal>(static_cast<StringVal&>(*val));
+            return(new StringVal(static_cast<StringVal&>(*val)));
         case ValueType::Bool:
-            return std::make_unique<BoolVal>(static_cast<BoolVal&>(*val));
+            return(new BoolVal(static_cast<BoolVal&>(*val)));
         default:
-            return std::make_unique<Nullval>();
+            return(new Nullval());
     }
 }
 
-std::unique_ptr<RuntimeVal> EvalVarDecl(VarDecl decl, Environment& env){
-    std::unique_ptr<RuntimeVal> initVal;
+RuntimeVal* EvalVarDecl(VarDecl decl, Environment& env){
+    RuntimeVal* initVal;
     if(decl.value!=nullptr){
         // if(decl.type!=decl.value){
         //     // throw std::runtime_error("Type Error: Variable declaration type does not match initializer type");
@@ -308,24 +309,24 @@ std::unique_ptr<RuntimeVal> EvalVarDecl(VarDecl decl, Environment& env){
     }else{
         switch(decl.type){
             case ValueType::Integer:
-                initVal = std::make_unique<IntVal>(0);
+                initVal = new IntVal(0);
                 break;
             case ValueType::Float:
-                initVal = std::make_unique<FloatVal>(0.0);
+                initVal = new FloatVal(0.0);
                 break;
             case ValueType::String:
-                initVal = std::make_unique<StringVal>("");
+                initVal = new StringVal("");
                 break;
             case ValueType::Bool:
-                initVal = std::make_unique<BoolVal>(false);
+                initVal = new BoolVal(false);
                 break;
             default:
-                initVal = std::make_unique<Nullval>();
+                initVal = new Nullval();
         }
         // initVal = std::make_unique<Nullval>();
     }
-    env.declareVal(decl.name, std::move(initVal), decl.immutable);
-    return std::make_unique<Nullval>();
+    env.declareVal(decl.name, initVal, decl.immutable);
+    return new Nullval();
 }
 
 
@@ -355,7 +356,7 @@ std::string printNodeType(NodeType t){
     }
 }
 
-std::unique_ptr<RuntimeVal> Eval(Stmt* astNode, Environment& env){
+RuntimeVal* Eval(Stmt* astNode, Environment& env){
     switch(astNode->kind){
         case NodeType::IfStatement: {
             return EvalIfStmt(dynamic_cast<IfStmt*>(astNode), env);
@@ -364,15 +365,15 @@ std::unique_ptr<RuntimeVal> Eval(Stmt* astNode, Environment& env){
             auto* lit = dynamic_cast<Literal*>(astNode);
             auto type = classifyLiteral(lit->value);
             if(type == LiteralType::Integer)
-                return std::make_unique<IntVal>(std::stoi(lit->value));
+                return new IntVal(std::stoi(lit->value));
             else if(type == LiteralType::Float)
-                return std::make_unique<FloatVal>(std::stof(lit->value));
+                return new FloatVal(std::stof(lit->value));
             else if(type == LiteralType::String)
-                return std::make_unique<StringVal>(lit->value);
+                return new StringVal(lit->value);
             else if(type == LiteralType::Boolean)
-                return std::make_unique<BoolVal>(lit->value == "true");
+                return new BoolVal(lit->value == "true");
             else
-                {return std::make_unique<Nullval>(); }
+                {return new Nullval(); }
             break;
         }
         case NodeType::VariableDeclaration: {
@@ -398,10 +399,10 @@ std::unique_ptr<RuntimeVal> Eval(Stmt* astNode, Environment& env){
                 throw std::runtime_error("Invalid assignment target (L-Value error)");
             }
             auto val = Eval(asgn->value, env);
-            env.assignVal(ident->name, std::move(val)); 
-            return env.getVal(ident->name)->clone();
+            env.assignVal(ident->name, val); 
+            return env.getVal(ident->name);
         }default:
             std::cerr<<"Unimplemented AST node type in Eval: "<<printNodeType(astNode->kind)<<std::endl;
-            return std::make_unique<Nullval>();
+            return new Nullval();
     }
 }
