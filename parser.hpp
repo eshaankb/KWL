@@ -24,6 +24,7 @@ private:
     Stmt* ParseVarDecl();
     Stmt* parseIf();
     Stmt* parseBlock();
+    Stmt* ParseClassDecl();
 
 
     int getPrecedence(const Token& tok);

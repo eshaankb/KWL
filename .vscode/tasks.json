@@ -12,7 +12,6 @@
                 "main.cpp",
                 "parser.cpp",
                 "lexer.cpp",
-                "ast.cpp",
                 "interpreter.cpp",
                 "environment.cpp",
                 "-o",

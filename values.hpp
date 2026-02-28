@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include<iostream>
+#include<unordered_map>
 using namespace std;
 enum class ValueType {
     Integer,
@@ -10,6 +11,7 @@ enum class ValueType {
     String,
     Function,
     Bool,
+    Structure,
     Null
 };
 
@@ -61,4 +63,22 @@ struct StringVal : RuntimeVal {
         return new StringVal(value);
     }
     void print() const override { cout << value; };
+};
+
+struct StructureVal : RuntimeVal {
+    unordered_map<string, RuntimeVal*> fields;
+    StructureVal(unordered_map<string, RuntimeVal*> f) : RuntimeVal(ValueType::Structure), fields(f) {};
+    RuntimeVal* clone() const override {
+        unordered_map<string, RuntimeVal*> clonedFields;
+        clonedFields = fields;
+        return new StructureVal(clonedFields);
+    }
+    void print() const override {
+        for (const auto& field : fields) {
+            cout << field.first << ": ";
+            field.second->print();
+            cout << "; ";
+        }
+        cout << "}";
+    };
 };

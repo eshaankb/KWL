@@ -39,7 +39,15 @@ Token Parser::eat() {
 Stmt* Parser::ParseStmt() {
     // variable declaration: int x = ...
     Stmt* stmt = nullptr;
-    if(peek().type == TokenType::BlockKeyword && peek().value=="if"){
+    if(peek().type == TokenType::CommentLine){
+        eat();
+    }
+    if(peek().type == TokenType::CommentBlock){
+        eat();
+    }else if(peek().type == TokenType::Keyword&&peek().value=="crclass"){
+        stmt = ParseClassDecl();
+    }
+    else if(peek().type == TokenType::BlockKeyword && peek().value=="if"){
         stmt = parseIf();}
     else if (peek().type == TokenType::TypeIdent || 
        (peek().type == TokenType::Keyword && peek().value == "mkimmutable")) {
@@ -55,7 +63,26 @@ Stmt* Parser::ParseStmt() {
     }
     return stmt;
 }
+Stmt* Parser::ParseClassDecl() {
+    eat(); // consume 'crclass'
+    Token name = eat();
+    if (name.type != TokenType::Identifier) {
+        throw std::runtime_error("Expected identifier for class name in class declaration\n");
+        // return new ;}
+    }
+    // if(peek().type!=TokenType::LBracket){
+    //     throw std::runtime_error("Expected bracket in class construction");
+    // }
+    BlockStmt* body = parseBlock();
+    for(Stmt* bodys : body->body){
+        if(bodys->kind==NodeType::VariableDeclaration){
+            //more here
 
+        }
+    }
+
+
+}
 Stmt* Parser::parseIf() {
     Token control = eat();
     if(peek().type!=TokenType::Backslash){
@@ -90,7 +117,7 @@ Stmt* Parser::parseIf() {
 
 }
 
-Stmt* Parser::parseBlock() {
+BlockStmt* Parser::parseBlock() {
     auto block = new BlockStmt();
     if(peek().type!=TokenType::LBracket){
         throw std::runtime_error("Expected opening '[' for block\n");
