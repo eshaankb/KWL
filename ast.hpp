@@ -120,6 +120,15 @@ public:
         : Expr(NodeType::IndexExpression), object(obj), index(idx) {}
 };
 
+class CallStructExpr : public Expr {
+public:
+    Expr* object;
+    string field;
+
+    CallStructExpr(Expr* obj, const string& f)
+        : Expr(NodeType::CallExpression), object(obj), field(f) {}
+};
+
 class BuiltinCall : public Expr {
 public:
     string name;

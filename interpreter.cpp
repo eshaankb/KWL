@@ -335,6 +335,19 @@ RuntimeVal* EvalStruct(StructDecl decl, Environment& env){
     return new Nullval();
 }
 
+RuntimeVal* EvalCallStruct(CallStructExpr call, Environment& env){
+    RuntimeVal* obj = Eval(call.object, env);
+    if(obj->type!=ValueType::Structure){
+        throw std::runtime_error("Type Error: Attempting to access field of non-structure value");
+    }
+    StructureVal& structVal = static_cast<StructureVal&>(*obj);
+    auto it = structVal.fields.find(call.field);
+    if(it==structVal.fields.end()){
+        throw std::runtime_error("Runtime Error: Field '"+call.field+"' not found in structure");
+    }
+    return it->second;
+}
+
 RuntimeVal* EvalVarDecl(VarDecl decl, Environment& env){
     RuntimeVal* initVal;
     if(decl.value!=nullptr){

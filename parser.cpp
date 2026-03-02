@@ -255,16 +255,28 @@ Expr* Parser::ParsePrimExpr() {
             }
             break;
 
-        default:
-            throw std::runtime_error("UNEXPECTED TOKEN: "+tok.value+'\n');
-            return new Literal("INVALID");
+        // default:
+        //     throw std::runtime_error("UNEXPECTED TOKEN: "+tok.value+'\n');
+        //     return new Literal("INVALID");
     }
     // // Handle postfix expressions: calls and indexing
     while (true) {
-        // function call: expr , arg1 ; arg2 bslash
+        // function call: function name bslash arg1 ; arg2 bslash
         if (peek().type == TokenType::Comma) {
+
             eat(); // ,
-            vector<Expr*> args;
+            Token fieldTok = eat();
+            if(fieldTok.type != TokenType::Identifier){
+                throw std::runtime_error("Expected field name in struct call\n");
+            }
+            string fieldName = fieldTok.value;
+            expr = new CallStructExpr(expr, fieldName);
+            continue;
+        }
+
+        if(peek().type == TokenType::Backslash){
+            eat();
+             vector<Expr*> args;
 
             while (peek().type != TokenType::Backslash) {
                 args.push_back(ParseExpr());
@@ -292,7 +304,6 @@ Expr* Parser::ParsePrimExpr() {
 
         break;
     }
-
     return expr;
     }
 
