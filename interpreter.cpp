@@ -19,6 +19,7 @@ string valueTypeName(ValueType t) {
         case ValueType::Function: return "Function";
         case ValueType::Null: return "Null";
         case ValueType::Bool: return "Boolean";
+        case ValueType::Structure: return "Class";
     }
     return "Unknown";
 }
@@ -296,6 +297,44 @@ RuntimeVal* EvalIdentifier(Identifier identifier, Environment& env){
     }
 }
 
+RuntimeVal* EvalStruct(StructDecl decl, Environment& env){
+    StructureVal workingStruct = StructureVal();
+    for(Stmt* bodys : (decl.vars->body)){
+        if(bodys->kind==NodeType::VariableDeclaration){
+            VarDecl var = *dynamic_cast<VarDecl*>(bodys);
+            RuntimeVal* initVal;
+            if(var.value!=nullptr){
+                initVal = Eval(var.value, env);
+                if (initVal->type != var.type) {
+                    throw std::runtime_error("Type Error: Variable declaration type does not match initializer type in struct declaration");
+                }else{
+                    workingStruct.fields[var.name]=initVal;
+                }
+            }else{
+                switch(var.type){
+                    case ValueType::Integer:
+                        initVal = new IntVal(0);
+                        break;
+                    case ValueType::Float:
+                        initVal = new FloatVal(0.0);
+                        break;
+                    case ValueType::String:
+                        initVal = new StringVal("");
+                        break;
+                    case ValueType::Bool:
+                        initVal = new BoolVal(false);
+                        break;
+                    default:
+                        initVal = new Nullval();
+                }
+                workingStruct.fields[var.name]=initVal;
+            }
+        }
+
+    }
+    return new Nullval();
+}
+
 RuntimeVal* EvalVarDecl(VarDecl decl, Environment& env){
     RuntimeVal* initVal;
     if(decl.value!=nullptr){
@@ -379,6 +418,10 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
         case NodeType::VariableDeclaration: {
             auto* decl = dynamic_cast<VarDecl*>(astNode);
             return EvalVarDecl(*decl, env);
+
+        }case NodeType::StructureDeclaration: {
+            auto structure = dynamic_cast<StructDecl*>(astNode);
+            return EvalStruct(*structure, env);
 
         }
         case NodeType::Identifier: {

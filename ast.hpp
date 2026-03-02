@@ -23,6 +23,7 @@ enum class NodeType {
     ReturnStatement,
     BuiltinCall,
     NullLiteral,
+    StructureDeclaration
 };
 
 
@@ -140,6 +141,16 @@ public:
         : type(tp), Stmt(NodeType::VariableDeclaration), name(n), value(init), immutable(immut) {}
 };
 
+class StructDecl : public Stmt {
+public:
+    string name;
+    BlockStmt* vars;
+    ValueType type = ValueType::Structure;
+
+   StructDecl(const string& n, BlockStmt* init = nullptr, bool immut = false)
+        : Stmt(NodeType::StructureDeclaration), name(n), vars(init) {}
+};
+
 class Assignment : public Expr {
 public:
     Expr* target;
@@ -149,7 +160,7 @@ public:
         : Expr(NodeType::Assignment), target(t), value(val) {}
 };
 
-class WhileStmt : public Stmt {
+class WhileStmt : public Stmt { 
 public:
     Expr* condition;
     Stmt* body;

@@ -23,7 +23,7 @@ private:
     Expr* ParsePrimExpr();
     Stmt* ParseVarDecl();
     Stmt* parseIf();
-    Stmt* parseBlock();
+    BlockStmt* parseBlock();
     Stmt* ParseClassDecl();
 
 

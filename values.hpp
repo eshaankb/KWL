@@ -67,7 +67,7 @@ struct StringVal : RuntimeVal {
 
 struct StructureVal : RuntimeVal {
     unordered_map<string, RuntimeVal*> fields;
-    StructureVal(unordered_map<string, RuntimeVal*> f) : RuntimeVal(ValueType::Structure), fields(f) {};
+    StructureVal(unordered_map<string, RuntimeVal*> f = {}) : RuntimeVal(ValueType::Structure), fields(f) {};
     RuntimeVal* clone() const override {
         unordered_map<string, RuntimeVal*> clonedFields;
         clonedFields = fields;

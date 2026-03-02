@@ -107,6 +107,52 @@ vector<Token> tokenize(string sourcecode) {
             continue;
 
         }
+        if (src[0] == '"') {
+            src.erase(src.begin());
+            string str = "\"";
+            
+            while (src.size() > 0 && src[0] != '"') {\
+                if (src[0] == '\\' && src.size() > 1 && src[1] == '"') {
+                    str += '"';
+                    src.erase(src.begin(), src.begin() + 2);
+                } else {
+                    str += src[0];
+                    src.erase(src.begin());
+                }
+            }
+
+            if (src.size() > 0 && src[0] == '"') {
+                src.erase(src.begin()); 
+            } else {
+                throw std::runtime_error("Lexer Error: Unclosed string literal.");
+            }
+            str.append("\"");
+            tokens.push_back(Token(str, TokenType::StringLiteral));
+            continue;
+        }
+        if (src[0] == '\'') {
+            src.erase(src.begin());
+            string str = "";
+            
+            while (src.size() > 0 && src[0] != '\'') {\
+                if (src[0] == '\\' && src.size() > 1 && src[1] == '\'') {
+                    str += '\'';
+                    src.erase(src.begin(), src.begin() + 2);
+                } else {
+                    str += src[0];
+                    src.erase(src.begin());
+                }
+            }
+
+            if (src.size() > 0 && src[0] == '\'') {
+                src.erase(src.begin()); 
+            } else {
+                throw std::runtime_error("Lexer Error: Unclosed string literal.");
+            }
+
+            tokens.push_back(Token(str, TokenType::StringLiteral));
+            continue;
+        }
         if (src[0] == '=' && src.size() > 1 && src[1] == '=') {
             tokens.push_back(Token("==", TokenType::ComparisonOp));
             src.erase(src.begin(), src.begin() + 2);

@@ -74,12 +74,7 @@ Stmt* Parser::ParseClassDecl() {
     //     throw std::runtime_error("Expected bracket in class construction");
     // }
     BlockStmt* body = parseBlock();
-    for(Stmt* bodys : body->body){
-        if(bodys->kind==NodeType::VariableDeclaration){
-            //more here
-
-        }
-    }
+    return new StructDecl(name.value, body);
 
 
 }
@@ -170,7 +165,7 @@ Stmt* Parser::ParseVarDecl() {
             type=ValueType::Float;
         }if(tem.value=="float64"){
             type=ValueType::Float;
-        }if(tem.value=="string"){
+        }if(tem.value=="str"){
             type=ValueType::String;
         }if(tem.value=="bool"){
             type=ValueType::Bool;
@@ -239,7 +234,7 @@ Expr* Parser::ParsePrimExpr() {
         case TokenType::Identifier:
             expr = new Identifier(tok.value);
             break;
-
+        case TokenType::StringLiteral:
         case TokenType::IntLiteral:
         case TokenType::FloatLiteral:
         case TokenType::BoolLiteral:
