@@ -50,6 +50,9 @@ Token Parser::eat() {
 
 Stmt* Parser::ParseStmt() {
     std::cerr << "[PARSER] ParseStmt start, next token=" << peek().value << " type=" << (int)peek().type << "\n";
+    std::cerr << "[PARSER] structNames size=" << structNames.size();
+    if (structNames.contains(peek().value)) std::cerr << " (matches struct)";
+    std::cerr << "\n";
     // skip any comment tokens (lexer now removes them, but be safe)
     while (peek().type == TokenType::CommentLine || peek().type == TokenType::CommentBlock) {
         eat();
