@@ -145,19 +145,26 @@ public:
     Expr* value; 
     bool immutable;
     ValueType type;
+    // for structures we remember the class name
+    std::string structTypeName;
 
-   VarDecl(ValueType tp, const string& n, Expr* init = nullptr, bool immut = false)
-        : type(tp), Stmt(NodeType::VariableDeclaration), name(n), value(init), immutable(immut) {}
+   VarDecl(ValueType tp, const string& n, Expr* init = nullptr, bool immut = false, const std::string& structName = "")
+        : type(tp), Stmt(NodeType::VariableDeclaration), name(n), value(init), immutable(immut), structTypeName(structName) {}
+};
+
+struct ConstructorDecl {
+    vector<pair<string, ValueType>> params; // parameter name and type
 };
 
 class StructDecl : public Stmt {
 public:
     string name;
     BlockStmt* vars;
+    ConstructorDecl* constructor;
     ValueType type = ValueType::Structure;
 
-   StructDecl(const string& n, BlockStmt* init = nullptr, bool immut = false)
-        : Stmt(NodeType::StructureDeclaration), name(n), vars(init) {}
+   StructDecl(const string& n, BlockStmt* init = nullptr, ConstructorDecl* constr = nullptr, bool immut = false)
+        : Stmt(NodeType::StructureDeclaration), name(n), vars(init), constructor(constr) {}
 };
 
 class Assignment : public Expr {

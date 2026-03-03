@@ -75,6 +75,12 @@ int processFile(const string& filename) {
     }
     string sourcecode((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
     file.close();
+    // debug tokens before parsing
+    auto toks = tokenize(sourcecode);
+    cout << "Tokens from file:\n";
+    for (auto &t : toks) {
+        cout << t.value << " (" << (int)t.type << ")\n";
+    }
     Program program = parser.produceAST(sourcecode);
     RuntimeVal* result = Eval(&program, env);
     result->print();

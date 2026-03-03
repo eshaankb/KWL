@@ -18,5 +18,6 @@ FloatVal EvalFloatBExpr(FloatVal left, FloatVal right, std::string op);
 IntVal EvalIntBExpr(IntVal left, IntVal right, std::string op);
 RuntimeVal* EvalIdentifier(Identifier identifier, Environment& env);
 RuntimeVal* EvalProgram(Program* prog, Environment& env);
+RuntimeVal* EvalConstructorCall(CallExpr call, Environment& env);
 
 LiteralType cLiteral(std::string s);

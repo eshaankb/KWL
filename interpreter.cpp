@@ -32,8 +32,9 @@ LiteralType classifyLiteral(const std::string& s) {
         return LiteralType::Boolean;
     }
 
-    // Check for quoted string
-    if (s.size() >= 2 && s.front() == '"' && s.back() == '"') {
+    // Check for quoted string (double or single quotes)
+    if (s.size() >= 2 && ((s.front() == '"' && s.back() == '"') ||
+                           (s.front() == '\'' && s.back() == '\''))) {
         return LiteralType::String;
     }
 
@@ -297,21 +298,29 @@ RuntimeVal* EvalIdentifier(Identifier identifier, Environment& env){
     }
 }
 
-RuntimeVal* EvalStruct(StructDecl decl, Environment& env){
-    StructureVal workingStruct = StructureVal();
-    for(Stmt* bodys : (decl.vars->body)){
-        if(bodys->kind==NodeType::VariableDeclaration){
-            VarDecl var = *dynamic_cast<VarDecl*>(bodys);
-            RuntimeVal* initVal;
-            if(var.value!=nullptr){
-                initVal = Eval(var.value, env);
-                if (initVal->type != var.type) {
-                    throw std::runtime_error("Type Error: Variable declaration type does not match initializer type in struct declaration");
-                }else{
-                    workingStruct.fields[var.name]=initVal;
-                }
-            }else{
-                switch(var.type){
+RuntimeVal* EvalStruct(StructDecl* decl, Environment& env){
+    // Register the class definition in the environment
+    env.declareClass(decl->name, decl);
+    return new Nullval();
+}
+
+RuntimeVal* EvalConstructorCall(CallExpr call, Environment& env){
+    // callee should be identifier naming class
+    if (auto id = dynamic_cast<Identifier*>(call.callee)) {
+        StructDecl* classDecl = env.getClass(id->name);
+        if (!classDecl) {
+            throw std::runtime_error("Runtime Error: Class '" + id->name + "' not found");
+        }
+        
+        // Create a new instance with default field values
+        StructureVal* instance = new StructureVal({}, classDecl->name);
+        
+        // initialize defaults
+        for (Stmt* stmt : classDecl->vars->body) {
+            if (stmt->kind == NodeType::VariableDeclaration) {
+                VarDecl* var = dynamic_cast<VarDecl*>(stmt);
+                RuntimeVal* initVal;
+                switch(var->type){
                     case ValueType::Integer:
                         initVal = new IntVal(0);
                         break;
@@ -327,12 +336,29 @@ RuntimeVal* EvalStruct(StructDecl decl, Environment& env){
                     default:
                         initVal = new Nullval();
                 }
-                workingStruct.fields[var.name]=initVal;
+                instance->fields[var->name] = initVal;
             }
         }
-
+        
+        // apply constructor parameters if provided
+        if (classDecl->constructor && !call.arguments.empty()) {
+            auto& params = classDecl->constructor->params;
+            if (call.arguments.size() != params.size()) {
+                throw std::runtime_error("Runtime Error: Constructor expects " + std::to_string(params.size()) + 
+                                         " arguments but got " + std::to_string(call.arguments.size()));
+            }
+            for (size_t i = 0; i < params.size(); i++) {
+                RuntimeVal* argVal = Eval(call.arguments[i], env);
+                if (argVal->type != params[i].second) {
+                    throw std::runtime_error("Type Error: Constructor argument type mismatch for parameter '" + 
+                                           params[i].first + "'");
+                }
+                instance->fields[params[i].first] = argVal;
+            }
+        }
+        return instance;
     }
-    return new Nullval();
+    throw std::runtime_error("Runtime Error: Constructor call on non-identifier");
 }
 
 RuntimeVal* EvalCallStruct(CallStructExpr call, Environment& env){
@@ -349,14 +375,26 @@ RuntimeVal* EvalCallStruct(CallStructExpr call, Environment& env){
 }
 
 RuntimeVal* EvalVarDecl(VarDecl decl, Environment& env){
+    std::cerr << "[EVAL] EvalVarDecl name="<< decl.name << " type="<< valueTypeName(decl.type) <<" struct="<< decl.structTypeName <<"\n";
     RuntimeVal* initVal;
     if(decl.value!=nullptr){
-        // if(decl.type!=decl.value){
-        //     // throw std::runtime_error("Type Error: Variable declaration type does not match initializer type");
-        // }
         initVal = Eval(decl.value, env);
-        if (initVal->type != decl.type) {
-            throw std::runtime_error("Type Error: Variable declaration type does not match initializer type");
+        std::cerr << "[EVAL] initializer returned type="<< valueTypeName(initVal->type) <<"\n";
+        if (decl.type == ValueType::Structure) {
+            if (initVal->type != ValueType::Structure) {
+                throw std::runtime_error("Type Error: Expected structure initializer for variable '" + decl.name + "'");
+            }
+            // optionally check class name match
+            if (!decl.structTypeName.empty()) {
+                StructureVal& sv = static_cast<StructureVal&>(*initVal);
+                if (sv.className != decl.structTypeName) {
+                    throw std::runtime_error("Type Error: Expected instance of class '" + decl.structTypeName + "'");
+                }
+            }
+        } else {
+            if (initVal->type != decl.type) {
+                throw std::runtime_error("Type Error: Variable declaration type does not match initializer type");
+            }
         }
     }else{
         switch(decl.type){
@@ -372,10 +410,17 @@ RuntimeVal* EvalVarDecl(VarDecl decl, Environment& env){
             case ValueType::Bool:
                 initVal = new BoolVal(false);
                 break;
+            case ValueType::Structure:
+                // create empty structure with class name
+                {
+                    StructureVal* inst = new StructureVal();
+                    inst->className = decl.structTypeName;
+                    initVal = inst;
+                }
+                break;
             default:
                 initVal = new Nullval();
         }
-        // initVal = std::make_unique<Nullval>();
     }
     env.declareVal(decl.name, initVal, decl.immutable);
     return new Nullval();
@@ -409,6 +454,11 @@ std::string printNodeType(NodeType t){
 }
 
 RuntimeVal* Eval(Stmt* astNode, Environment& env){
+    if (!astNode) {
+        std::cerr << "[EVAL] called with null astNode\n";
+        return new Nullval();
+    }
+    std::cerr << "[EVAL] node kind=" << printNodeType(astNode->kind) << "\n";
     switch(astNode->kind){
         case NodeType::IfStatement: {
             return EvalIfStmt(dynamic_cast<IfStmt*>(astNode), env);
@@ -420,8 +470,14 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
                 return new IntVal(std::stoi(lit->value));
             else if(type == LiteralType::Float)
                 return new FloatVal(std::stof(lit->value));
-            else if(type == LiteralType::String)
-                return new StringVal(lit->value);
+            else if(type == LiteralType::String) {
+                string str = lit->value;
+                if (str.size() >= 2 && ((str.front() == '"' && str.back() == '"') ||
+                                        (str.front() == '\'' && str.back() == '\''))) {
+                    str = str.substr(1, str.size() - 2);
+                }
+                return new StringVal(str);
+            }
             else if(type == LiteralType::Boolean)
                 return new BoolVal(lit->value == "true");
             else
@@ -434,8 +490,22 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
 
         }case NodeType::StructureDeclaration: {
             auto structure = dynamic_cast<StructDecl*>(astNode);
-            return EvalStruct(*structure, env);
+            return EvalStruct(structure, env);
 
+        }case NodeType::CallExpression: {
+            if (auto callStructExpr = dynamic_cast<CallStructExpr*>(astNode)) {
+                return EvalCallStruct(*callStructExpr, env);
+            } else if (auto callExpr = dynamic_cast<CallExpr*>(astNode)) {
+                // check for constructor call
+                try {
+                    return EvalConstructorCall(*callExpr, env);
+                } catch (const std::runtime_error& r) {
+                    // if class not found, maybe it's a normal function
+                    // for now we rethrow
+                    throw;
+                }
+            }
+            return new Nullval();
         }
         case NodeType::Identifier: {
             auto* id = dynamic_cast<Identifier*>(astNode);

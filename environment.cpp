@@ -40,3 +40,18 @@ RuntimeVal* Environment::getVal(std::string varname) {
     Environment* env = resolve(varname);
     return env->variables[varname];
 }
+
+void Environment::declareClass(std::string className, StructDecl* classDecl) {
+    classes[className] = classDecl;
+}
+
+StructDecl* Environment::getClass(std::string className) {
+    if (classes.contains(className)) {
+        return classes[className];
+    } else if (parent != nullptr) {
+        return parent->getClass(className);
+    } else {
+        throw std::runtime_error("Class not found: " + className);
+        return nullptr;
+    }
+}

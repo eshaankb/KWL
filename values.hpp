@@ -67,13 +67,15 @@ struct StringVal : RuntimeVal {
 
 struct StructureVal : RuntimeVal {
     unordered_map<string, RuntimeVal*> fields;
-    StructureVal(unordered_map<string, RuntimeVal*> f = {}) : RuntimeVal(ValueType::Structure), fields(f) {};
+    std::string className;
+    StructureVal(unordered_map<string, RuntimeVal*> f = {}, const std::string& cls = "")
+        : RuntimeVal(ValueType::Structure), fields(f), className(cls) {};
     RuntimeVal* clone() const override {
-        unordered_map<string, RuntimeVal*> clonedFields;
-        clonedFields = fields;
-        return new StructureVal(clonedFields);
+        unordered_map<string, RuntimeVal*> clonedFields = fields;
+        return new StructureVal(clonedFields, className);
     }
     void print() const override {
+        cout << "<" << className << "> {";
         for (const auto& field : fields) {
             cout << field.first << ": ";
             field.second->print();

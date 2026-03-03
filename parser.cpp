@@ -10,10 +10,22 @@ Program Parser::produceAST(string sourcecode) {
 
     Program program;
 
+    int stmtCount = 0;
     while (notEOF()) {
-        program.body.push_back(ParseStmt());
+        std::cerr << "[PARSER] about to parse statement, next token=" << tokens[0].value << "\n";
+        Stmt* s = ParseStmt();
+        if (s == nullptr) {
+            std::cerr << "[PARSER] ParseStmt returned nullptr\n";
+        }
+        program.body.push_back(s);
+        stmtCount++;
+        if (stmtCount > 1000) {
+            std::cerr << "[PARSER] too many statements, aborting\n";
+            break;
+        }
     }
 
+    std::cerr << "[PARSER] finished produceAST with "<<program.body.size()<<" statements\n";
     return program;
 }
 
@@ -37,19 +49,20 @@ Token Parser::eat() {
    ======================= */
 
 Stmt* Parser::ParseStmt() {
-    // variable declaration: int x = ...
-    Stmt* stmt = nullptr;
-    if(peek().type == TokenType::CommentLine){
+    std::cerr << "[PARSER] ParseStmt start, next token=" << peek().value << " type=" << (int)peek().type << "\n";
+    // skip any comment tokens (lexer now removes them, but be safe)
+    while (peek().type == TokenType::CommentLine || peek().type == TokenType::CommentBlock) {
         eat();
     }
-    if(peek().type == TokenType::CommentBlock){
-        eat();
-    }else if(peek().type == TokenType::Keyword&&peek().value=="crclass"){
+    // variable declaration: int x = ...
+    Stmt* stmt = nullptr;
+    if(peek().type == TokenType::Keyword&&peek().value=="crclass"){ 
         stmt = ParseClassDecl();
     }
     else if(peek().type == TokenType::BlockKeyword && peek().value=="if"){
         stmt = parseIf();}
     else if (peek().type == TokenType::TypeIdent || 
+       (peek().type == TokenType::Identifier && structNames.contains(peek().value)) ||
        (peek().type == TokenType::Keyword && peek().value == "mkimmutable")) {
         stmt= ParseVarDecl();
     }else{
@@ -68,15 +81,44 @@ Stmt* Parser::ParseClassDecl() {
     Token name = eat();
     if (name.type != TokenType::Identifier) {
         throw std::runtime_error("Expected identifier for class name in class declaration\n");
-        // return new ;}
     }
-    // if(peek().type!=TokenType::LBracket){
-    //     throw std::runtime_error("Expected bracket in class construction");
-    // }
+    // record struct name for later variable declarations
+    this->structNames.insert(name.value);
+
     BlockStmt* body = parseBlock();
-    return new StructDecl(name.value, body);
-
-
+    
+    // Parse constructor if present
+    ConstructorDecl* constr = nullptr;
+    for (auto stmt : body->body) {
+        if (stmt->kind == NodeType::CallExpression) {
+            // Check if this is a constructor (starts with "constr")
+            if (auto callExpr = dynamic_cast<CallExpr*>(stmt)) {
+                if (auto ident = dynamic_cast<Identifier*>(callExpr->callee)) {
+                    if (ident->name == "constr") {
+                        constr = new ConstructorDecl();
+                        // Extract parameter types from the call arguments
+                        for (auto arg : callExpr->arguments) {
+                            if (auto argIdent = dynamic_cast<Identifier*>(arg)) {
+                                // Try to find the matching variable declaration to get type
+                                for (auto checkStmt : body->body) {
+                                    if (checkStmt->kind == NodeType::VariableDeclaration) {
+                                        auto varDecl = dynamic_cast<VarDecl*>(checkStmt);
+                                        if (varDecl->name == argIdent->name) {
+                                            constr->params.push_back({argIdent->name, varDecl->type});
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    return new StructDecl(name.value, body, constr);
 }
 Stmt* Parser::parseIf() {
     Token control = eat();
@@ -141,37 +183,41 @@ BlockStmt* Parser::parseBlock() {
 Stmt* Parser::ParseVarDecl() {
     // consume type
     ValueType type;
+    std::string structName = "";
     bool isc=false; //is constant
-    if(true){
-        Token tem;
-        Token te1 = eat();
-        //see if constant
-        if(te1.type==TokenType::Keyword&&te1.value=="mkimmutable"){
-            isc=true;
-            eat(); //consume bslash
-            tem = eat();
-        }else{
-            tem = te1;
-        }
-        if(tem.type!=TokenType::TypeIdent){
-            throw std::runtime_error("Expected type identifier in variable declaration\n");
-            return new VarDecl(ValueType::Null,"INVALID");
-        }
+    Token tem;
+    Token te1 = eat();
+    //see if constant
+    if(te1.type==TokenType::Keyword&&te1.value=="mkimmutable"){
+        isc=true;
+        eat(); //consume bslash
+        tem = eat();
+    }else{
+        tem = te1;
+    }
+    if(tem.type==TokenType::TypeIdent) {
         if(tem.value=="int"){
             type=ValueType::Integer;
-        }if(tem.value=="int64"){
+        }else if(tem.value=="int64"){
             type=ValueType::Integer;
-        }if(tem.value=="float"){
+        }else if(tem.value=="float"){
             type=ValueType::Float;
-        }if(tem.value=="float64"){
+        }else if(tem.value=="float64"){
             type=ValueType::Float;
-        }if(tem.value=="str"){
+        }else if(tem.value=="str"){
             type=ValueType::String;
-        }if(tem.value=="bool"){
+        }else if(tem.value=="bool"){
             type=ValueType::Bool;
         }
-    //add size support for each
+    } else if (tem.type==TokenType::Identifier && this->structNames.contains(tem.value)) {
+        // treat identifier as struct type
+        type = ValueType::Structure;
+        structName = tem.value;
+    } else {
+        throw std::runtime_error("Expected type identifier in variable declaration\n");
+        return new VarDecl(ValueType::Null,"INVALID");
     }
+
     //consume identifier
     Token name = eat();
     if (name.type != TokenType::Identifier) {
@@ -185,12 +231,13 @@ Stmt* Parser::ParseVarDecl() {
         eat(); // =
         initializer = ParseExpr();
 
-    }if(isc&&peek().type==TokenType::Backslash){
+    }
+    if(isc&&peek().type==TokenType::Backslash){
         eat(); //consume bslash
     }else if(isc){
         throw std::runtime_error("Expected closing '\\' \n");
     }
-    return new VarDecl(type, name.value, initializer, isc);
+    return new VarDecl(type, name.value, initializer, isc, structName);
 }
 
  
@@ -200,12 +247,12 @@ Stmt* Parser::ParseVarDecl() {
    EXPRESSIONS
    ======================= */
 
-Expr* Parser::ParseExpr() {
-    return ParseBinaryExpr();
+Expr* Parser::ParseExpr() {    std::cerr << "[PARSER] ParseExpr\n";    return ParseBinaryExpr();
 }
 
 Expr* Parser::ParseBinaryExpr(int precedence) {
     Expr* left = ParsePrimExpr();
+    std::cerr << "[PARSER] ParseBinaryExpr left kind=" << (left ? (int)left->kind : -1) << "\n";
 
     while (notEOF()) {
         int nextPrec = getPrecedence(peek());
@@ -227,6 +274,7 @@ Expr* Parser::ParseBinaryExpr(int precedence) {
 
 Expr* Parser::ParsePrimExpr() {
     Token tok = eat();
+    std::cerr << "[PARSER] ParsePrimExpr tok="<<tok.value<<" type="<<(int)tok.type<<"\n";
 
     Expr* expr = nullptr;
 
@@ -289,8 +337,24 @@ Expr* Parser::ParsePrimExpr() {
             continue;
         }
 
-        // indexing: expr [ index ]
+        // indexing or potential constructor parameter list
         if (peek().type == TokenType::LBracket) {
+            if (auto ident = dynamic_cast<Identifier*>(expr)) {
+                // special-case 'constr' inside class body
+                if (ident->name == "constr") {
+                    eat(); // consume [
+                    vector<Expr*> args;
+                    while (peek().type != TokenType::RBracket) {
+                        args.push_back(ParseExpr());
+                        if (peek().type == TokenType::Semicolon) eat();
+                    }
+                    eat(); // consume ]
+                    // represent as call expression for easier handling later
+                    expr = new CallExpr(new Identifier("constr"), args);
+                    continue;
+                }
+            }
+            // regular indexing
             eat(); // [
             Expr* index = ParseExpr();
             if (peek().type != TokenType::RBracket) {

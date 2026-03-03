@@ -56,13 +56,12 @@ vector<Token> tokenize(string sourcecode) {
                 }
                 if (src.size() >= 3)
                     src.erase(src.begin(), src.begin() + 3);
-                tokens.push_back(Token("###", TokenType::CommentBlock));
-            }
-            // Line comment #
-             {
+                // drop block comment entirely
+            } else {
+                // Line comment #
                 while (src.size() && src[0] != '\n')
                     src.erase(src.begin());
-                tokens.push_back(Token("#", TokenType::CommentLine));
+                // drop line comment entirely
             }
             continue;
         }
@@ -150,7 +149,8 @@ vector<Token> tokenize(string sourcecode) {
                 throw std::runtime_error("Lexer Error: Unclosed string literal.");
             }
 
-            tokens.push_back(Token(str, TokenType::StringLiteral));
+            // wrap single-quoted string same as double-quoted so classifier can detect
+            tokens.push_back(Token("'" + str + "'", TokenType::StringLiteral));
             continue;
         }
         if (src[0] == '=' && src.size() > 1 && src[1] == '=') {

@@ -1,10 +1,10 @@
 #ifndef PARSER_HPP
 #define PARSER_HPP
-
 #include <string>
 #include <vector>
 #include "lexer.hpp"
 #include "ast.hpp"
+#include <unordered_set>
 
 class Parser {
 public:
@@ -12,6 +12,9 @@ public:
 
 private:
     std::vector<Token> tokens;
+    // keep track of struct/class names seen so far
+    std::unordered_set<std::string> structNames;
+
     bool notEOF();
     Token eat();
     Token& peek(int offset = 0);

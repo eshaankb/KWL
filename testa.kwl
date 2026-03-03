@@ -1,3 +1,14 @@
-crclass X [
-    
+
+crclass dog [
+    str breed;
+    int size;
+    constr[breed;size];
 ];
+
+#instantiate using constructor syntax
+
+dog bobby = dog\'maltipoo';32\;
+
+bobby,breed; # maltipoo
+bobby,size; # 32
+
