@@ -23,7 +23,15 @@ string valueTypeName(ValueType t) {
     }
     return "Unknown";
 }
-
+RuntimeVal* createDefaultValue(ValueType type) {
+    switch(type) {
+        case ValueType::Integer: return new IntVal(0);
+        case ValueType::Float:   return new FloatVal(0.0);
+        case ValueType::String:  return new StringVal("");
+        case ValueType::Bool:    return new BoolVal(false);
+        default:                 return new Nullval();
+    }
+}
 LiteralType classifyLiteral(const std::string& s) {
     if (s.empty()) return LiteralType::Invalid;
 
@@ -362,15 +370,15 @@ RuntimeVal* EvalConstructorCall(ConstructorCallExpr call, Environment& env){
         }
         return instance;}
 
-RuntimeVal* EvalCallStruct(CallStructExpr call, Environment& env){
-    RuntimeVal* obj = Eval(call.object, env);
+RuntimeVal* EvalCallStruct(CallStructExpr* call, Environment& env){
+    RuntimeVal* obj = Eval(call->object, env);
     if(obj->type!=ValueType::Structure){
         throw std::runtime_error("Type Error: Attempting to access field of non-structure value");
     }
     StructureVal& structVal = static_cast<StructureVal&>(*obj);
-    auto it = structVal.fields.find(call.field);
+    auto it = structVal.fields.find(call->field);
     if(it==structVal.fields.end()){
-        throw std::runtime_error("Runtime Error: Field '"+call.field+"' not found in structure");
+        throw std::runtime_error("Runtime Error: Field '"+call->field+"' not found in structure");
     }
     return it->second;
 }
@@ -450,6 +458,9 @@ std::string printNodeType(NodeType t){
         case NodeType::WhileStatement: return "WhileStatement";
         case NodeType::ReturnStatement: return "ReturnStatement";
         case NodeType::BuiltinCall: return "BuiltinCall";
+        case NodeType::NullLiteral: return "NullLiteral";
+        case NodeType::StructureDeclaration: return "StructureDeclaration";
+        case NodeType::ConstructorCall: return "ConstructorCall";
         default: return "UnknownNodeType";
     }
 }
@@ -495,7 +506,7 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
 
         }case NodeType::CallExpression: {
             if (auto callStructExpr = dynamic_cast<CallStructExpr*>(astNode)) {
-                return EvalCallStruct(*callStructExpr, env);
+                return EvalCallStruct(callStructExpr, env);
             } else if (auto callExpr = dynamic_cast<CallExpr*>(astNode)) {
                 // normal function call
                 throw std::runtime_error("Function calls not implemented yet");
