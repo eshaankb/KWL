@@ -14,6 +14,8 @@ private:
     std::vector<Token> tokens;
     // keep track of struct/class names seen so far
     std::unordered_set<std::string> structNames;
+    // flag to prevent backslash postfix operators during argument parsing
+    bool inArgumentList = false;
 
     bool notEOF();
     Token eat();
@@ -28,6 +30,7 @@ private:
     Stmt* parseIf();
     BlockStmt* parseBlock();
     Stmt* ParseClassDecl();
+    void expect(TokenType type, const std::string& message);
 
 
     int getPrecedence(const Token& tok);

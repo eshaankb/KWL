@@ -284,17 +284,24 @@ RuntimeVal* EvalBinaryExpr(BinaryExpr binop, Environment& env){
 
 RuntimeVal* EvalIdentifier(Identifier identifier, Environment& env){
     auto val = env.getVal(identifier.name);
+    if (!val) {
+        throw std::runtime_error("Runtime Error: Undefined identifier '" + identifier.name + "'");
+    }
+    // structures and other complex values can be cloned directly
+    if(val->type == ValueType::Structure){
+        return val->clone();
+    }
     switch(val->type){
         case ValueType::Integer:
-            return(new IntVal(static_cast<IntVal&>(*val)));
+            return new IntVal(static_cast<IntVal&>(*val));
         case ValueType::Float:
-            return(new FloatVal(static_cast<FloatVal&>(*val)));
+            return new FloatVal(static_cast<FloatVal&>(*val));
         case ValueType::String:
-            return(new StringVal(static_cast<StringVal&>(*val)));
+            return new StringVal(static_cast<StringVal&>(*val));
         case ValueType::Bool:
-            return(new BoolVal(static_cast<BoolVal&>(*val)));
+            return new BoolVal(static_cast<BoolVal&>(*val));
         default:
-            return(new Nullval());
+            return new Nullval();
     }
 }
 
@@ -304,24 +311,21 @@ RuntimeVal* EvalStruct(StructDecl* decl, Environment& env){
     return new Nullval();
 }
 
-RuntimeVal* EvalConstructorCall(CallExpr call, Environment& env){
-    // callee should be identifier naming class
-    if (auto id = dynamic_cast<Identifier*>(call.callee)) {
-        StructDecl* classDecl = env.getClass(id->name);
-        if (!classDecl) {
-            throw std::runtime_error("Runtime Error: Class '" + id->name + "' not found");
-        }
-        
-        // Create a new instance with default field values
-        StructureVal* instance = new StructureVal({}, classDecl->name);
-        
-        // initialize defaults
-        for (Stmt* stmt : classDecl->vars->body) {
-            if (stmt->kind == NodeType::VariableDeclaration) {
-                VarDecl* var = dynamic_cast<VarDecl*>(stmt);
-                RuntimeVal* initVal;
-                switch(var->type){
-                    case ValueType::Integer:
+RuntimeVal* EvalConstructorCall(ConstructorCallExpr call, Environment& env){
+    // className is known
+    StructDecl* classDecl = env.getClass(call.className);
+    if (!classDecl) {
+        throw std::runtime_error("Runtime Error: Class '" + call.className + "' not found");
+    }
+    
+    // Create a new instance with default field values
+    StructureVal* instance = new StructureVal({}, classDecl->name);
+    
+    // initialize defaults
+    for (const auto& field : classDecl->vars) {
+        RuntimeVal* initVal;
+            switch(field.second){
+                case ValueType::Integer:
                         initVal = new IntVal(0);
                         break;
                     case ValueType::Float:
@@ -335,10 +339,10 @@ RuntimeVal* EvalConstructorCall(CallExpr call, Environment& env){
                         break;
                     default:
                         initVal = new Nullval();
+                        break;
                 }
-                instance->fields[var->name] = initVal;
-            }
-        }
+                instance->fields[field.first] = initVal;
+    }
         
         // apply constructor parameters if provided
         if (classDecl->constructor && !call.arguments.empty()) {
@@ -356,10 +360,7 @@ RuntimeVal* EvalConstructorCall(CallExpr call, Environment& env){
                 instance->fields[params[i].first] = argVal;
             }
         }
-        return instance;
-    }
-    throw std::runtime_error("Runtime Error: Constructor call on non-identifier");
-}
+        return instance;}
 
 RuntimeVal* EvalCallStruct(CallStructExpr call, Environment& env){
     RuntimeVal* obj = Eval(call.object, env);
@@ -496,16 +497,14 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
             if (auto callStructExpr = dynamic_cast<CallStructExpr*>(astNode)) {
                 return EvalCallStruct(*callStructExpr, env);
             } else if (auto callExpr = dynamic_cast<CallExpr*>(astNode)) {
-                // check for constructor call
-                try {
-                    return EvalConstructorCall(*callExpr, env);
-                } catch (const std::runtime_error& r) {
-                    // if class not found, maybe it's a normal function
-                    // for now we rethrow
-                    throw;
-                }
+                // normal function call
+                throw std::runtime_error("Function calls not implemented yet");
             }
             return new Nullval();
+        }
+        case NodeType::ConstructorCall: {
+            auto* constrCall = dynamic_cast<ConstructorCallExpr*>(astNode);
+            return EvalConstructorCall(*constrCall, env);
         }
         case NodeType::Identifier: {
             auto* id = dynamic_cast<Identifier*>(astNode);

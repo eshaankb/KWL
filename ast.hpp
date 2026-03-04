@@ -16,6 +16,7 @@ enum class NodeType {
     Literal,
     Identifier,
     CallExpression,
+    ConstructorCall,
     IndexExpression,
     IfStatement,
     ElseStatement,
@@ -111,6 +112,15 @@ public:
         : Expr(NodeType::CallExpression), callee(c), arguments(args) {}
 };
 
+class ConstructorCallExpr : public Expr {
+public:
+    string className;
+    vector<Expr*> arguments;
+
+    ConstructorCallExpr(const string& cn, const vector<Expr*>& args)
+        : Expr(NodeType::ConstructorCall), className(cn), arguments(args) {}
+};
+
 class IndexExpr : public Expr {
 public:
     Expr* object;
@@ -159,12 +169,12 @@ struct ConstructorDecl {
 class StructDecl : public Stmt {
 public:
     string name;
-    BlockStmt* vars;
+    vector<pair<string, ValueType>> vars;
     ConstructorDecl* constructor;
     ValueType type = ValueType::Structure;
 
-   StructDecl(const string& n, BlockStmt* init = nullptr, ConstructorDecl* constr = nullptr, bool immut = false)
-        : Stmt(NodeType::StructureDeclaration), name(n), vars(init), constructor(constr) {}
+   StructDecl(const string& n, const vector<pair<string, ValueType>>& v, ConstructorDecl* constr = nullptr, bool immut = false)
+        : Stmt(NodeType::StructureDeclaration), name(n), vars(v), constructor(constr) {}
 };
 
 class Assignment : public Expr {

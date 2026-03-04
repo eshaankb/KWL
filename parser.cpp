@@ -15,10 +15,11 @@ Program Parser::produceAST(string sourcecode) {
         std::cerr << "[PARSER] about to parse statement, next token=" << tokens[0].value << "\n";
         Stmt* s = ParseStmt();
         if (s == nullptr) {
-            std::cerr << "[PARSER] ParseStmt returned nullptr\n";
+            std::cerr << "[PARSER] ParseStmt returned nullptr, skipping\n";
+        } else {
+            program.body.push_back(s);
+            stmtCount++;
         }
-        program.body.push_back(s);
-        stmtCount++;
         if (stmtCount > 1000) {
             std::cerr << "[PARSER] too many statements, aborting\n";
             break;
@@ -44,17 +45,27 @@ Token Parser::eat() {
     return prev;
 }
 
+void Parser::expect(TokenType type, const std::string& message) {
+    if (peek().type != type) {
+        throw std::runtime_error(message);
+    }
+    eat();
+}
+
 /* =======================
    STATEMENTS
    ======================= */
 
 Stmt* Parser::ParseStmt() {
+    if (!notEOF()) {
+        return nullptr;
+    }
     std::cerr << "[PARSER] ParseStmt start, next token=" << peek().value << " type=" << (int)peek().type << "\n";
     std::cerr << "[PARSER] structNames size=" << structNames.size();
     if (structNames.contains(peek().value)) std::cerr << " (matches struct)";
     std::cerr << "\n";
     // skip any comment tokens (lexer now removes them, but be safe)
-    while (peek().type == TokenType::CommentLine || peek().type == TokenType::CommentBlock) {
+    while (notEOF() && (peek().type == TokenType::CommentLine || peek().type == TokenType::CommentBlock)) {
         eat();
     }
     // variable declaration: int x = ...
@@ -64,65 +75,81 @@ Stmt* Parser::ParseStmt() {
     }
     else if(peek().type == TokenType::BlockKeyword && peek().value=="if"){
         stmt = parseIf();}
-    else if (peek().type == TokenType::TypeIdent || 
-       (peek().type == TokenType::Identifier && structNames.contains(peek().value)) ||
-       (peek().type == TokenType::Keyword && peek().value == "mkimmutable")) {
+    else if (peek().type == TokenType::TypeIdent) {
+        std::cerr << "[PARSER] Matched TypeIdent\n";
         stmt= ParseVarDecl();
-    }else{
-
-    // fallback: expression statement
-    stmt = ParseExpr();}
-    if (peek().type == TokenType::Semicolon)
-        eat();
+    }
+    else if (peek().type == TokenType::Identifier && structNames.contains(peek().value)) {
+        std::cerr << "[PARSER] Matched Identifier struct: " << peek().value << "\n";
+        stmt= ParseVarDecl();
+    }
+    else if (peek().type == TokenType::Keyword && peek().value == "mkimmutable") {
+        std::cerr << "[PARSER] Matched mkimmutable\n";
+        stmt= ParseVarDecl();
+    }
     else{
+        // fallback: expression statement
+        std::cerr << "[PARSER] ParseStmt falling through to ParseExpr, peek type=" << (int)peek().type << " value=" << peek().value << "\n";
+        stmt = ParseExpr();
+    }
+    if (peek().type == TokenType::Semicolon) {
+        std::cerr << "[PARSER] ParseStmt eating semicolon\n";
+        eat();
+    } else{
         throw std::runtime_error("Syntax Error: Expected ';' at the end of statement, but found '" + peek().value + "'");
     }
+    std::cerr << "[PARSER] ParseStmt returning\n";
     return stmt;
 }
-Stmt* Parser::ParseClassDecl() {
-    eat(); // consume 'crclass'
-    Token name = eat();
-    if (name.type != TokenType::Identifier) {
-        throw std::runtime_error("Expected identifier for class name in class declaration\n");
-    }
-    // record struct name for later variable declarations
-    this->structNames.insert(name.value);
 
-    BlockStmt* body = parseBlock();
+Stmt* Parser::ParseClassDecl() {
+    eat(); // crclass
+    string className = eat().value;
+    structNames.insert(className);
     
-    // Parse constructor if present
-    ConstructorDecl* constr = nullptr;
-    for (auto stmt : body->body) {
-        if (stmt->kind == NodeType::CallExpression) {
-            // Check if this is a constructor (starts with "constr")
-            if (auto callExpr = dynamic_cast<CallExpr*>(stmt)) {
-                if (auto ident = dynamic_cast<Identifier*>(callExpr->callee)) {
-                    if (ident->name == "constr") {
-                        constr = new ConstructorDecl();
-                        // Extract parameter types from the call arguments
-                        for (auto arg : callExpr->arguments) {
-                            if (auto argIdent = dynamic_cast<Identifier*>(arg)) {
-                                // Try to find the matching variable declaration to get type
-                                for (auto checkStmt : body->body) {
-                                    if (checkStmt->kind == NodeType::VariableDeclaration) {
-                                        auto varDecl = dynamic_cast<VarDecl*>(checkStmt);
-                                        if (varDecl->name == argIdent->name) {
-                                            constr->params.push_back({argIdent->name, varDecl->type});
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        break;
-                    }
+    expect(TokenType::LBracket, "Expected '[' after class name");
+    
+    vector<pair<string, ValueType>> fields;
+    vector<pair<string, ValueType>> constrParams;
+    
+    while (notEOF() && peek().type != TokenType::RBracket) {
+        if (peek().value == "constr") {
+            eat(); // constr
+            expect(TokenType::LBracket, "Expected '[' for constructor params");
+            while (peek().type != TokenType::RBracket) {
+                Token paramName = eat();
+                if (paramName.type != TokenType::Identifier) {
+                    throw runtime_error("Expected parameter name in constructor");
                 }
+                constrParams.push_back({paramName.value, ValueType::Null}); // Placeholder; you can infer types later if needed
+                if (peek().type == TokenType::Semicolon) eat();
             }
+            eat(); // ]
+            expect(TokenType::Semicolon, "Expected ';' after constr[...] ");
+        } else {
+            // Parse field: type name;
+            Token typeTok = eat();
+            ValueType fieldType;
+            if (typeTok.value == "int") fieldType = ValueType::Integer;
+            else if (typeTok.value == "str") fieldType = ValueType::String;
+            else if (typeTok.value == "float") fieldType = ValueType::Float;
+            else if (typeTok.value == "bool") fieldType = ValueType::Bool;
+            else throw runtime_error("Unknown field type: " + typeTok.value);
+            
+            Token nameTok = eat();
+            if (nameTok.type != TokenType::Identifier) {
+                throw runtime_error("Expected field name after type");
+            }
+            fields.push_back({nameTok.value, fieldType});
+            expect(TokenType::Semicolon, "Expected ';' after field declaration");
         }
     }
-    
-    return new StructDecl(name.value, body, constr);
+    eat(); // ]
+    //StructDecl(const string& n, BlockStmt* init = nullptr, ConstructorDecl* constr = nullptr, bool immut = false) 
+    StructDecl* decl = new StructDecl(className, fields);
+    return decl;
 }
+
 Stmt* Parser::parseIf() {
     Token control = eat();
     if(peek().type!=TokenType::Backslash){
@@ -240,6 +267,7 @@ Stmt* Parser::ParseVarDecl() {
     }else if(isc){
         throw std::runtime_error("Expected closing '\\' \n");
     }
+    std::cerr << "[PARSER] ParseVarDecl returning, peek()=" << peek().value << " type=" << (int)peek().type << "\n";
     return new VarDecl(type, name.value, initializer, isc, structName);
 }
 
@@ -255,6 +283,7 @@ Expr* Parser::ParseExpr() {    std::cerr << "[PARSER] ParseExpr\n";    return Pa
 
 Expr* Parser::ParseBinaryExpr(int precedence) {
     Expr* left = ParsePrimExpr();
+    if (!left) return nullptr;
     std::cerr << "[PARSER] ParseBinaryExpr left kind=" << (left ? (int)left->kind : -1) << "\n";
 
     while (notEOF()) {
@@ -279,6 +308,9 @@ Expr* Parser::ParsePrimExpr() {
     Token tok = eat();
     std::cerr << "[PARSER] ParsePrimExpr tok="<<tok.value<<" type="<<(int)tok.type<<"\n";
 
+    if (tok.type == TokenType::EndOfFile) {
+        return nullptr;
+    }
     Expr* expr = nullptr;
 
     switch (tok.type) {
@@ -311,7 +343,8 @@ Expr* Parser::ParsePrimExpr() {
         //     return new Literal("INVALID");
     }
     // // Handle postfix expressions: calls and indexing
-    while (true) {
+    while (notEOF()) {
+        std::cerr << "[PARSER] In postfix loop, peek=" << peek().value << " type=" << (int)peek().type << "\n";
         // function call: function name bslash arg1 ; arg2 bslash
         if (peek().type == TokenType::Comma) {
 
@@ -325,18 +358,45 @@ Expr* Parser::ParsePrimExpr() {
             continue;
         }
 
-        if(peek().type == TokenType::Backslash){
+        if(peek().type == TokenType::Backslash && !inArgumentList){
+            std::cerr << "[PARSER] Found backslash in postfix for expr: " << (expr ? (int)expr->kind : -1) << "\n";
             eat();
-             vector<Expr*> args;
+            vector<Expr*> args;
 
-            while (peek().type != TokenType::Backslash) {
+            // read arguments until closing backslash
+            bool prevInArgumentList = inArgumentList;
+            inArgumentList = true;
+            while (notEOF()) {
+                std::cerr << "[PARSER] In backslash arg loop, peek=" << peek().value << " type=" << (int)peek().type << "\n";
+                if (peek().type == TokenType::Backslash) {
+                    std::cerr << "[PARSER] Found closing backslash, eating and breaking\n";
+                    eat(); // consume closing backslash
+                    break;
+                }
+                std::cerr << "[PARSER] About to parse arg expression\n";
                 args.push_back(ParseExpr());
-                if (peek().type == TokenType::Semicolon)
+                std::cerr << "[PARSER] Parsed arg, now peek=" << peek().value << " type=" << (int)peek().type << "\n";
+                if (peek().type == TokenType::Semicolon) {
+                    std::cerr << "[PARSER] Eating semicolon separator\n";
                     eat();
+                    continue;
+                }
+                std::cerr << "[PARSER] No semicolon after arg, continuing\n";
+                // if neither semicolon nor backslash, continue parsing next expr
             }
+            inArgumentList = prevInArgumentList;
+            std::cerr << "[PARSER] Exited backslash arg loop\n";
+            std::cerr << "[PARSER] Exited backslash arg loop\n";
 
-            eat(); // 
-            expr = new CallExpr(expr, args);
+            if (auto ident = dynamic_cast<Identifier*>(expr)) {
+                if (structNames.contains(ident->name)) {
+                    expr = new ConstructorCallExpr(ident->name, args);
+                } else {
+                    expr = new CallExpr(expr, args);
+                }
+            } else {
+                expr = new CallExpr(expr, args);
+            }
             continue;
         }
 
@@ -347,7 +407,7 @@ Expr* Parser::ParsePrimExpr() {
                 if (ident->name == "constr") {
                     eat(); // consume [
                     vector<Expr*> args;
-                    while (peek().type != TokenType::RBracket) {
+                    while (notEOF() && peek().type != TokenType::RBracket) {
                         args.push_back(ParseExpr());
                         if (peek().type == TokenType::Semicolon) eat();
                     }
