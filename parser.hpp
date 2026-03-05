@@ -30,6 +30,8 @@ private:
     Stmt* parseIf();
     BlockStmt* parseBlock();
     Stmt* ParseClassDecl();
+    Stmt* ParseFunctionDecl();
+    Expr* ParseFunctionCall(const string& fnName);
     void expect(TokenType type, const std::string& message);
 
 

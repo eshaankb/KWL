@@ -24,7 +24,9 @@ enum class NodeType {
     ReturnStatement,
     BuiltinCall,
     NullLiteral,
-    StructureDeclaration
+    StructureDeclaration,
+    FunctionDeclaration,
+    FunctionCall
 };
 
 
@@ -54,7 +56,7 @@ public:
 };
 class ElseStmt : public Stmt {
 public:
-    BlockStmt* body;
+    Stmt* body;
 
     ElseStmt(BlockStmt* b) : Stmt(NodeType::ElseStatement), body(b) {}
 };
@@ -205,5 +207,21 @@ public:
 };
 struct NullLiteral : public Expr {
     NullLiteral() : Expr(NodeType::NullLiteral) {}
+};
+
+struct FunctionDecl : public Stmt {
+    string name;
+    vector<VarDecl*> parameters;
+    ValueType* returnType;
+    BlockStmt* body;
+    FunctionDecl(const string& n, const vector<VarDecl*>& params, BlockStmt* b, ValueType* rt = nullptr)
+        : Stmt(NodeType::FunctionDeclaration), name(n), parameters(params), body(b), returnType(rt) {}
+};
+
+struct FunctionCall : public Expr {
+    string functionName;
+    vector<Expr*> arguments;
+    FunctionCall(const string& fn, const vector<Expr*>& args)
+        : Expr(NodeType::FunctionCall), functionName(fn), arguments(args) {}
 };
 #endif

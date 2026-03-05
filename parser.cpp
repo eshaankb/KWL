@@ -77,7 +77,10 @@ Stmt* Parser::ParseStmt() {
         stmt = parseIf();}
     else if (peek().type == TokenType::TypeIdent) {
         std::cerr << "[PARSER] Matched TypeIdent\n";
-        stmt= ParseVarDecl();
+        if (peek(1).type == TokenType::Backtick) {
+            stmt = ParseFunctionDecl();
+        }else{
+            stmt = ParseVarDecl();}
     }
     else if (peek().type == TokenType::Identifier && structNames.contains(peek().value)) {
         std::cerr << "[PARSER] Matched Identifier struct: " << peek().value << "\n";
@@ -100,6 +103,36 @@ Stmt* Parser::ParseStmt() {
     }
     std::cerr << "[PARSER] ParseStmt returning\n";
     return stmt;
+}
+Stmt* Parser::ParseFunctionDecl() {
+    eat(); // consume `
+    if(peek().type != TokenType::Keyword || peek().value != "fn") {
+        throw std::runtime_error("Expected fn after type for function declaration");
+        return nullptr;
+    }
+    eat(); // consume fn
+    string fnName = eat().value;
+    expect(TokenType::Backslash, "Expected '\\' after function name");
+    vector<VarDecl*> params;
+    while (peek().type != TokenType::Backslash) {
+        params.push_back(static_cast<VarDecl*>(ParseVarDecl()));
+        if (peek().type == TokenType::Semicolon) eat();
+    }
+    eat(); // consume ']'
+    BlockStmt* body = parseBlock();
+    FunctionDecl* decl = new FunctionDecl(fnName, params, body);
+    return decl;
+}
+
+Expr* Parser::ParseFunctionCall(const string& fnName) {
+    vector<Expr*> args;
+    expect(TokenType::Backslash, "Expected '\\' after function name in call expression");
+    while (peek().type != TokenType::Backslash) {
+        args.push_back(ParseExpr());
+        if (peek().type == TokenType::Semicolon) eat();
+    }
+    eat(); // consume ']'
+    return new FunctionCall(fnName, args);
 }
 
 Stmt* Parser::ParseClassDecl() {
@@ -315,7 +348,12 @@ Expr* Parser::ParsePrimExpr() {
 
     switch (tok.type) {
         case TokenType::Identifier:
-            expr = new Identifier(tok.value);
+            if(peek(1).type == TokenType::Backslash) {
+                // function call
+                expr = ParseFunctionCall(tok.value);
+            } else {
+                // variable reference
+            expr = new Identifier(tok.value);}
             break;
         case TokenType::StringLiteral:
         case TokenType::IntLiteral:

@@ -25,7 +25,7 @@ bool isKeyword(const string& s) {
 
 bool isType(const string& s) {
     static const vector<string> types = {
-        "int", "int64", "fl", "fl64", "str", "bool"
+        "int", "int64", "fl", "fl64", "str", "bool", "void"
     };
     return find(types.begin(), types.end(), s) != types.end();
 }

@@ -7,7 +7,7 @@ enum class TokenType {
     Identifier,
     Keyword,
     BlockKeyword, //if lp etc 
-    BuiltinIdentifier,
+    BuiltinIdentifier, 
     TypeIdent,
     IntLiteral,
     FloatLiteral,
