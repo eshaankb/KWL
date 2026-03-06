@@ -464,6 +464,16 @@ std::string printNodeType(NodeType t){
         default: return "UnknownNodeType";
     }
 }
+RuntimeVal* EvalFunctionDecl(FunctionDecl* decl, Environment& env){
+    FunctionVal* func = new FunctionVal({{}}, nullptr, &env);
+    func->paramNames.reserve(decl->parameters.size());
+    for (int i = 0; i < decl->parameters.size(); i++) {
+        func->paramNames.emplace_back(decl->parameters[i]->name, decl->parameters[i]->type);
+    }
+    func->body = decl->body;
+    env.declareVal(decl->name, func, true);
+    return new Nullval();
+}
 
 RuntimeVal* Eval(Stmt* astNode, Environment& env){
     if (!astNode) {

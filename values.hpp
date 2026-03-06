@@ -84,3 +84,25 @@ struct StructureVal : RuntimeVal {
         cout << "}";
     };
 };
+
+struct FunctionVal : RuntimeVal {
+    vector<pair<string, ValueType>> paramNames;
+    BlockStmt* body;
+    Environment* closureEnv;
+
+    FunctionVal(const vector<pair<string,ValueType>>& params = {{}}, BlockStmt* b=nullptr, Environment* env)
+        : RuntimeVal(ValueType::Function), paramNames(params), body(b), closureEnv(env) {}
+    
+    RuntimeVal* clone() const override {
+        return new FunctionVal(paramNames, body, closureEnv);
+    }
+    
+    void print() const override {
+        cout << "<function(";
+        for (size_t i = 0; i < paramNames.size(); ++i) {
+            cout << paramNames[i].first;
+            if (i < paramNames.size() - 1) cout << ", ";
+        }
+        cout << ")>";
+    }
+};
