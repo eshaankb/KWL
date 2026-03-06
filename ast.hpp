@@ -3,7 +3,7 @@
 
 #include <string>
 #include <vector>
-#include "values.hpp"
+#include "types.hpp"
 using namespace std;
 
 enum class NodeType {
@@ -16,6 +16,7 @@ enum class NodeType {
     Literal,
     Identifier,
     CallExpression,
+    ConstructorDeclaration,
     ConstructorCall,
     IndexExpression,
     IfStatement,
@@ -164,8 +165,10 @@ public:
         : type(tp), Stmt(NodeType::VariableDeclaration), name(n), value(init), immutable(immut), structTypeName(structName) {}
 };
 
-struct ConstructorDecl {
+struct ConstructorDecl : public Stmt {
     vector<pair<string, ValueType>> params; // parameter name and type
+
+    ConstructorDecl(const vector<pair<string, ValueType>>& p) : Stmt(NodeType::ConstructorDeclaration), params(p)  {}
 };
 
 class StructDecl : public Stmt {
@@ -197,12 +200,12 @@ public:
         : Stmt(NodeType::WhileStatement), condition(cond), body(b) {}
 };
 
-class ReturnStmt : public Stmt {
+class ReturnStmt : public Expr {
 public:
     Expr* value;
 
     explicit ReturnStmt(Expr* val = nullptr)
-        : Stmt(NodeType::ReturnStatement), value(val) {}
+        : Expr(NodeType::ReturnStatement), value(val) {}
 
 };
 struct NullLiteral : public Expr {

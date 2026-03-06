@@ -1,6 +1,7 @@
 #include<string>
 #include <charconv>
 #include <cctype>
+#include"types.hpp"
 #include"values.hpp"
 #include"ast.hpp"
 #include"interpreter.hpp"
@@ -89,6 +90,15 @@ RuntimeVal* EvalIfStmt(IfStmt* ifstmt, Environment& env) {
     } else {
         return new Nullval();
     }
+}
+
+RuntimeVal* EvalBlockStmt(BlockStmt* block, Environment& env) {
+    RuntimeVal* result = new Nullval();
+    Environment localEnv(&env); // create a new environment for the block
+    for (auto stmt : block->body) {
+        result = Eval(stmt, localEnv);
+    }
+    return result;
 }
 /*
 ========================
@@ -354,18 +364,17 @@ RuntimeVal* EvalConstructorCall(ConstructorCallExpr call, Environment& env){
         
         // apply constructor parameters if provided
         if (classDecl->constructor && !call.arguments.empty()) {
-            auto& params = classDecl->constructor->params;
-            if (call.arguments.size() != params.size()) {
-                throw std::runtime_error("Runtime Error: Constructor expects " + std::to_string(params.size()) + 
+            if (call.arguments.size() != classDecl->constructor->params.size()) {
+                throw std::runtime_error("Runtime Error: Constructor expects " + std::to_string(classDecl->constructor->params.size()) + 
                                          " arguments but got " + std::to_string(call.arguments.size()));
             }
-            for (size_t i = 0; i < params.size(); i++) {
+            for (size_t i = 0; i < classDecl->constructor->params.size(); i++) {
                 RuntimeVal* argVal = Eval(call.arguments[i], env);
-                if (argVal->type != params[i].second) {
+                if (argVal->type != classDecl->constructor->params[i].second) {
                     throw std::runtime_error("Type Error: Constructor argument type mismatch for parameter '" + 
-                                           params[i].first + "'");
+                                           classDecl->constructor->params[i].first + "'");
                 }
-                instance->fields[params[i].first] = argVal;
+                instance->fields[classDecl->constructor->params[i].first] = argVal;
             }
         }
         return instance;}
@@ -465,7 +474,7 @@ std::string printNodeType(NodeType t){
     }
 }
 RuntimeVal* EvalFunctionDecl(FunctionDecl* decl, Environment& env){
-    FunctionVal* func = new FunctionVal({{}}, nullptr, &env);
+    FunctionVal* func = new FunctionVal({{}}, nullptr);
     func->paramNames.reserve(decl->parameters.size());
     for (int i = 0; i < decl->parameters.size(); i++) {
         func->paramNames.emplace_back(decl->parameters[i]->name, decl->parameters[i]->type);
@@ -474,6 +483,29 @@ RuntimeVal* EvalFunctionDecl(FunctionDecl* decl, Environment& env){
     env.declareVal(decl->name, func, true);
     return new Nullval();
 }
+
+RuntimeVal* EvalFunctionCall(FunctionCall* call, Environment& env){
+    FunctionVal* funcVal = dynamic_cast<FunctionVal*>(env.getVal(call->functionName));
+    if (!funcVal) {
+        throw std::runtime_error("Runtime Error: '" + call->functionName + "' is not a function");
+    }
+    if (call->arguments.size() != funcVal->paramNames.size()) {
+        throw std::runtime_error("Runtime Error: Function '" + call->functionName + "' expects " + 
+                                 std::to_string(funcVal->paramNames.size()) + " arguments but got " + 
+                                 std::to_string(call->arguments.size()));
+    }
+    Environment* localEnv =  new Environment(&env); // create a new environment for the function call
+    for(size_t i = 0; i < call->arguments.size(); i++) {
+        localEnv->declareVal(funcVal->paramNames[i].first, Eval(call->arguments[i], env));
+    }
+    try {
+        return Eval(funcVal->body, *localEnv);
+    } catch (const RetVal& ret) {
+        return ret.value;
+    }
+
+}
+
 
 RuntimeVal* Eval(Stmt* astNode, Environment& env){
     if (!astNode) {
@@ -517,9 +549,6 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
         }case NodeType::CallExpression: {
             if (auto callStructExpr = dynamic_cast<CallStructExpr*>(astNode)) {
                 return EvalCallStruct(callStructExpr, env);
-            } else if (auto callExpr = dynamic_cast<CallExpr*>(astNode)) {
-                // normal function call
-                throw std::runtime_error("Function calls not implemented yet");
             }
             return new Nullval();
         }
@@ -534,6 +563,15 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
         case NodeType::BinaryExpression: {
             auto* binop = dynamic_cast<BinaryExpr*>(astNode);
             return EvalBinaryExpr(*binop, env);
+        }case NodeType::ReturnStatement: {
+            auto* stmt = static_cast<ReturnStmt*>(astNode);
+            RuntimeVal* val = new Nullval(); // Default return
+            
+            if (stmt->value) {
+                val = Eval(stmt->value, env);
+            }
+
+            throw RetVal(val);
         }
 
         case NodeType::Program: {
@@ -547,6 +585,12 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
             auto val = Eval(asgn->value, env);
             env.assignVal(ident->name, val); 
             return env.getVal(ident->name);
+        } case NodeType::BlockStatement: {
+            return EvalBlockStmt(dynamic_cast<BlockStmt*>(astNode), env);
+        } case NodeType::FunctionDeclaration: {
+            return EvalFunctionDecl(dynamic_cast<FunctionDecl*>(astNode), env);
+        } case NodeType::FunctionCall: {
+            return EvalFunctionCall(dynamic_cast<FunctionCall*>(astNode), env);
         }default:
             std::cerr<<"Unimplemented AST node type in Eval: "<<printNodeType(astNode->kind)<<std::endl;
             return new Nullval();

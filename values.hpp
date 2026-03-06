@@ -2,18 +2,13 @@
 #pragma once
 #include <string>
 #include <vector>
-#include<iostream>
-#include<unordered_map>
-using namespace std;
-enum class ValueType {
-    Integer,
-    Float,
-    String,
-    Function,
-    Bool,
-    Structure,
-    Null
-};
+#include <iostream>
+#include <unordered_map>
+#include "types.hpp"
+// Forward declaration
+struct BlockStmt;
+
+#include "ast.hpp"
 
 struct RuntimeVal {
     ValueType type; 
@@ -88,13 +83,12 @@ struct StructureVal : RuntimeVal {
 struct FunctionVal : RuntimeVal {
     vector<pair<string, ValueType>> paramNames;
     BlockStmt* body;
-    Environment* closureEnv;
 
-    FunctionVal(const vector<pair<string,ValueType>>& params = {{}}, BlockStmt* b=nullptr, Environment* env)
-        : RuntimeVal(ValueType::Function), paramNames(params), body(b), closureEnv(env) {}
+    FunctionVal(const vector<pair<string,ValueType>>& params = {{}}, BlockStmt* b=nullptr)
+        : RuntimeVal(ValueType::Function), paramNames(params), body(b) {}
     
     RuntimeVal* clone() const override {
-        return new FunctionVal(paramNames, body, closureEnv);
+        return new FunctionVal(paramNames, body);
     }
     
     void print() const override {
@@ -104,5 +98,17 @@ struct FunctionVal : RuntimeVal {
             if (i < paramNames.size() - 1) cout << ", ";
         }
         cout << ")>";
+    }
+};
+
+struct RetVal : RuntimeVal {
+    RuntimeVal* value;
+    RetVal(RuntimeVal* v) : RuntimeVal(ValueType::Null), value(v) {};
+    RuntimeVal* clone() const override {
+        return new RetVal(value->clone());
+    }
+    void print() const override {
+        cout << "<return> ";
+        value->print();
     }
 };

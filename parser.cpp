@@ -73,6 +73,9 @@ Stmt* Parser::ParseStmt() {
     if(peek().type == TokenType::Keyword&&peek().value=="crclass"){ 
         stmt = ParseClassDecl();
     }
+    if(peek().type == TokenType::Keyword && peek().value == "return") {
+        stmt = ParseReturn();
+    }
     else if(peek().type == TokenType::BlockKeyword && peek().value=="if"){
         stmt = parseIf();}
     else if (peek().type == TokenType::TypeIdent) {
@@ -105,6 +108,7 @@ Stmt* Parser::ParseStmt() {
     return stmt;
 }
 Stmt* Parser::ParseFunctionDecl() {
+    eat(); // consume return type
     eat(); // consume `
     if(peek().type != TokenType::Keyword || peek().value != "fn") {
         throw std::runtime_error("Expected fn after type for function declaration");
@@ -133,6 +137,12 @@ Expr* Parser::ParseFunctionCall(const string& fnName) {
     }
     eat(); // consume ']'
     return new FunctionCall(fnName, args);
+}
+
+Expr* Parser::ParseReturn(){
+    eat(); // consume return keyword
+    Expr* value = ParseExpr();
+    return new ReturnStmt(value);
 }
 
 Stmt* Parser::ParseClassDecl() {

@@ -18,7 +18,7 @@ bool isBlockKeyword(const string& s) {
 }
 bool isKeyword(const string& s) {
     static const vector<string> keywords = {
-        "and", "or", "nt", "mod", "gbl", "mkimmutable", "crclass"
+        "and", "or", "nt", "mod", "gbl", "mkimmutable", "crclass", "constr" , "return", "fn"
     };
     return find(keywords.begin(), keywords.end(), s) != keywords.end();
 }
