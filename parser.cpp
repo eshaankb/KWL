@@ -62,6 +62,7 @@ Stmt* Parser::ParseStmt() {
     }
     std::cerr << "[PARSER] ParseStmt start, next token=" << peek().value << " type=" << (int)peek().type << "\n";
     std::cerr << "[PARSER] structNames size=" << structNames.size();
+    std::cerr << "[DEBUG] Token: " << peek().value << " Type: " << (int)peek().type << "\n";
     if (structNames.contains(peek().value)) std::cerr << " (matches struct)";
     std::cerr << "\n";
     // skip any comment tokens (lexer now removes them, but be safe)
@@ -72,8 +73,7 @@ Stmt* Parser::ParseStmt() {
     Stmt* stmt = nullptr;
     if(peek().type == TokenType::Keyword&&peek().value=="crclass"){ 
         stmt = ParseClassDecl();
-    }
-    if(peek().type == TokenType::Keyword && peek().value == "return") {
+    }else if(peek().type == TokenType::Keyword && peek().value == "return") {
         stmt = ParseReturn();
     }
     else if(peek().type == TokenType::BlockKeyword && peek().value=="if"){
@@ -94,14 +94,15 @@ Stmt* Parser::ParseStmt() {
         stmt= ParseVarDecl();
     }
     else{
-        // fallback: expression statement
+        //  fallback: expression statement
         std::cerr << "[PARSER] ParseStmt falling through to ParseExpr, peek type=" << (int)peek().type << " value=" << peek().value << "\n";
         stmt = ParseExpr();
     }
-    if (peek().type == TokenType::Semicolon) {
+
+    if (peek().type == TokenType::Semicolon&&(!(stmt->kind==NodeType::IfStatement||stmt->kind==NodeType::FunctionDeclaration||stmt->kind==NodeType::StructureDeclaration))) {
         std::cerr << "[PARSER] ParseStmt eating semicolon\n";
         eat();
-    } else{
+    } else if(!(stmt->kind==NodeType::IfStatement||stmt->kind==NodeType::FunctionDeclaration||stmt->kind==NodeType::StructureDeclaration)){
         throw std::runtime_error("Syntax Error: Expected ';' at the end of statement, but found '" + peek().value + "'");
     }
     std::cerr << "[PARSER] ParseStmt returning\n";
