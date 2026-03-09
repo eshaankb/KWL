@@ -25,6 +25,8 @@ string valueTypeName(ValueType t) {
         case ValueType::Null: return "Null";
         case ValueType::Bool: return "Boolean";
         case ValueType::Structure: return "Class";
+        case ValueType::Array: return "Array";
+        case ValueType::Range: return "Range";
     }
     return "Unknown";
 }
@@ -34,6 +36,7 @@ RuntimeVal* createDefaultValue(ValueType type) {
         case ValueType::Float:   return new FloatVal(0.0);
         case ValueType::String:  return new StringVal("");
         case ValueType::Bool:    return new BoolVal(false);
+        case ValueType::Array:   return new ArrayVal({});
         default:                 return new Nullval();
     }
 }
@@ -514,6 +517,8 @@ std::string printNodeType(NodeType t){
         case NodeType::NullLiteral: return "NullLiteral";
         case NodeType::StructureDeclaration: return "StructureDeclaration";
         case NodeType::ConstructorCall: return "ConstructorCall";
+        case NodeType::ArrayLiteral: return "ArrayLiteral";
+        case NodeType::RangeExpression: return "RangeExpression";
         default: return "UnknownNodeType";
     }
 }
@@ -730,9 +735,27 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
             return EvalBlockStmt(dynamic_cast<BlockStmt*>(astNode), env);
         } case NodeType::FunctionDeclaration: {
             return EvalFunctionDecl(dynamic_cast<FunctionDecl*>(astNode), env);
-        } case NodeType::FunctionCall: {
+        }         case NodeType::FunctionCall: {
             return EvalFunctionCall(dynamic_cast<FunctionCall*>(astNode), env);
-        }default:
+        }
+        case NodeType::ArrayLiteral: {
+            auto* arr = dynamic_cast<ArrayLiteral*>(astNode);
+            vector<RuntimeVal*> elements;
+            for (auto e : arr->elements) {
+                elements.push_back(Eval(e, env));
+            }
+            return new ArrayVal(elements);
+        }
+        case NodeType::RangeExpression: {
+            auto* range = dynamic_cast<RangeExpr*>(astNode);
+            RuntimeVal* startVal = Eval(range->start, env);
+            RuntimeVal* endVal = Eval(range->end, env);
+            if (startVal->type != ValueType::Integer || endVal->type != ValueType::Integer) {
+                throw std::runtime_error("Range requires integer start and end values");
+            }
+            return new RangeVal(static_cast<IntVal*>(startVal)->value, static_cast<IntVal*>(endVal)->value);
+        }
+        default:
             std::cerr<<"Unimplemented AST node type in Eval: "<<printNodeType(astNode->kind)<<std::endl;
             return new Nullval();
     }

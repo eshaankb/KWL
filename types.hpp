@@ -7,5 +7,7 @@ enum class ValueType {
     Function,
     Bool,
     Structure,
-    Null
+    Null,
+    Array,
+    Range
 };

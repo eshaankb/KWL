@@ -24,7 +24,7 @@ bool isKeyword(const string& s) {
 
 bool isType(const string& s) {
     static const vector<string> types = {
-        "int", "int64", "fl", "fl64", "str", "bool", "void"
+        "int", "int64", "fl", "fl64", "str", "bool", "void", "arr"
     };
     return find(types.begin(), types.end(), s) != types.end();
 }
@@ -153,9 +153,14 @@ vector<Token> tokenize(string sourcecode) {
             tokens.push_back(Token("'" + str + "'", TokenType::StringLiteral));
             continue;
         }
-        if (src[0] == '=' && src.size() > 1 && src[1] == '=') {
-            tokens.push_back(Token("==", TokenType::ComparisonOp));
-            src.erase(src.begin(), src.begin() + 2);
+        if (src[0] == '[') {
+            tokens.push_back(Token(string(1, src[0]), TokenType::LBracket));
+            src.erase(src.begin());
+            continue;
+        }
+        if (src[0] == ']') {
+            tokens.push_back(Token(string(1,src[0]),TokenType::RBracket));
+            src.erase(src.begin());
             continue;
         }
         if (src[0] == 'n' && src.size() > 1 && src[1] == '=') {
@@ -184,8 +189,8 @@ vector<Token> tokenize(string sourcecode) {
             src.erase(src.begin(), src.begin() + 2);
             continue;
         }
-        if (src[0] == '~') {
-            tokens.push_back(Token("~", TokenType::RangeOp));
+        if (src[0] == ':') {
+            tokens.push_back(Token(":", TokenType::RangeOp));
             src.erase(src.begin());
             continue;
         }
@@ -194,16 +199,7 @@ vector<Token> tokenize(string sourcecode) {
             src.erase(src.begin());
             continue;
         }
-        
-         if (src[0]=='[') {
-            tokens.push_back(Token(string(1, src[0]), TokenType::LBracket));
-            src.erase(src.begin());
-            continue;
-        }  if (src[0]==']') {
-            tokens.push_back(Token(string(1,src[0]),TokenType::RBracket));
-            src.erase(src.begin());
-            continue;
-        } if (src[0] == '\\') {
+        if (src[0] == '\\') {
             tokens.push_back(Token("\\", TokenType::Backslash));
             src.erase(src.begin());
             continue;

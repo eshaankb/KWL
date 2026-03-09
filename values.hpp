@@ -112,3 +112,35 @@ struct RetVal : RuntimeVal {
         value->print();
     }
 };
+
+struct ArrayVal : RuntimeVal {
+    vector<RuntimeVal*> elements;
+    ArrayVal(vector<RuntimeVal*> elems) : RuntimeVal(ValueType::Array), elements(elems) {};
+    RuntimeVal* clone() const override {
+        vector<RuntimeVal*> clonedElements;
+        for (auto e : elements) {
+            clonedElements.push_back(e->clone());
+        }
+        return new ArrayVal(clonedElements);
+    }
+    void print() const override {
+        cout << "[";
+        for (size_t i = 0; i < elements.size(); i++) {
+            elements[i]->print();
+            if (i < elements.size() - 1) cout << ", ";
+        }
+        cout << "]";
+    }
+};
+
+struct RangeVal : RuntimeVal {
+    int start;
+    int end;
+    RangeVal(int s, int e) : RuntimeVal(ValueType::Range), start(s), end(e) {};
+    RuntimeVal* clone() const override {
+        return new RangeVal(start, end);
+    }
+    void print() const override {
+        cout << "[" << start << ":" << end << "]";
+    }
+};

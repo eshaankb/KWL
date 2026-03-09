@@ -29,7 +29,9 @@ enum class NodeType {
     FunctionDeclaration,
     FunctionCall,
     ImportStatement,
-    ExportDeclaration
+    ExportDeclaration,
+    ArrayLiteral,
+    RangeExpression
 };
 
 
@@ -239,6 +241,21 @@ struct ImportStmt : public Stmt {
 struct ExportDecl : public Stmt {
     Stmt* decl;
     ExportDecl(Stmt* d) : Stmt(NodeType::ExportDeclaration), decl(d) {}
+};
+
+class ArrayLiteral : public Expr {
+public:
+    vector<Expr*> elements;
+    explicit ArrayLiteral(const vector<Expr*>& elems)
+        : Expr(NodeType::ArrayLiteral), elements(elems) {}
+};
+
+class RangeExpr : public Expr {
+public:
+    Expr* start;
+    Expr* end;
+    RangeExpr(Expr* s, Expr* e)
+        : Expr(NodeType::RangeExpression), start(s), end(e) {}
 };
 
 

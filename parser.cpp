@@ -320,14 +320,31 @@ Stmt* Parser::ParseVarDecl() {
             type=ValueType::Integer;
         }else if(tem.value=="int64"){
             type=ValueType::Integer;
-        }else if(tem.value=="float"){
+        }else if(tem.value=="fl"){
             type=ValueType::Float;
-        }else if(tem.value=="float64"){
+        }else if(tem.value=="fl64"){
             type=ValueType::Float;
         }else if(tem.value=="str"){
             type=ValueType::String;
         }else if(tem.value=="bool"){
             type=ValueType::Bool;
+        }else if(tem.value=="arr"){
+            type=ValueType::Array;
+            // Handle arr\type\ syntax
+            if(peek().type == TokenType::Backslash) {
+                eat(); // consume backslash
+                // Get the element type
+                if(peek().type == TokenType::TypeIdent) {
+                    // Store element type info - for now just consume it
+                    Token elemType = eat();
+                    // Could store element type in a separate field if needed
+                }
+                if(peek().type == TokenType::Backslash) {
+                    eat(); // consume closing backslash
+                } else {
+                    throw std::runtime_error("Expected closing '\\' after array element type\n");
+                }
+            }
         }
     } else if (tem.type==TokenType::Identifier && this->structNames.contains(tem.value)) {
         // treat identifier as struct type
@@ -443,6 +460,47 @@ Expr* Parser::ParsePrimExpr() {
                 eat();
             }
             break;
+
+        case TokenType::LBracket: {
+            vector<Expr*> elements;
+            // Check if this is a range [start:end]
+            if (peek().type == TokenType::IntLiteral && peek(1).type == TokenType::RangeOp) {
+                Token startTok = eat();
+                eat(); // consume :
+                Token endTok = eat();
+                Expr* startExpr = new Literal(startTok.value);
+                Expr* endExpr = new Literal(endTok.value);
+                if (peek().type == TokenType::RBracket) {
+                    eat(); // consume ]
+                }
+                expr = new RangeExpr(startExpr, endExpr);
+                break;
+            }
+            // Otherwise, parse array literal
+            while (notEOF() && peek().type != TokenType::RBracket) {
+                // Parse array element - handle literal only for simple case
+                Token elemTok = eat();
+                if (elemTok.type == TokenType::IntLiteral) {
+                    elements.push_back(new Literal(elemTok.value));
+                } else if (elemTok.type == TokenType::FloatLiteral) {
+                    elements.push_back(new Literal(elemTok.value));
+                } else if (elemTok.type == TokenType::StringLiteral) {
+                    elements.push_back(new Literal(elemTok.value));
+                } else if (elemTok.type == TokenType::BoolLiteral) {
+                    elements.push_back(new Literal(elemTok.value));
+                } else {
+                    throw std::runtime_error("Unexpected token in array: " + elemTok.value);
+                }
+                if (peek().type == TokenType::Comma) {
+                    eat(); // consume comma
+                }
+            }
+            if (peek().type == TokenType::RBracket) {
+                eat(); // consume ]
+            }
+            expr = new ArrayLiteral(elements);
+            break;
+        }
 
         // default:
         //     throw std::runtime_error("UNEXPECTED TOKEN: "+tok.value+'\n');

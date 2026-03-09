@@ -17,7 +17,7 @@ enum class TokenType {
     LogicalOp,      // and or nt
     ComparisonOp,   // == n= < > =< >=
     AssignmentOp,   // = += -= etc
-    RangeOp,        // ~
+    RangeOp,        // :
     LBracket,       // [
     RBracket,       // ]
     Backslash,       // \\
