@@ -9,7 +9,6 @@
 #include"lexer.hpp"
 //static_assert(__cplusplus >= 202002L, "C++20 not enabled");
 using namespace std;
-
 bool isBlockKeyword(const string& s) {
     static const vector<string> blockKeywords = {
         "if", "lp", "el"
@@ -18,7 +17,7 @@ bool isBlockKeyword(const string& s) {
 }
 bool isKeyword(const string& s) {
     static const vector<string> keywords = {
-        "and", "or", "nt", "mod", "gbl", "mkimmutable", "crclass", "constr" , "return", "fn"
+        "and", "or", "nt", "mod", "gbl", "mkimmutable", "crclass", "constr" , "return", "fn", "import", "pub", "with", "all"
     };
     return find(keywords.begin(), keywords.end(), s) != keywords.end();
 }
@@ -82,7 +81,9 @@ vector<Token> tokenize(string sourcecode) {
             }
             //tokens.push_back(num, isFloat ? FloatLiteral : IntLiteral);
             continue;
-        } if (isalpha(src[0])) {
+        }
+        // Identifiers/keywords: stop at backslash
+        if (isalpha(src[0])) {
             string keyw;
             while(src.size()>0 && isalpha(src[0])){
                 keyw += src[0];
@@ -104,7 +105,6 @@ vector<Token> tokenize(string sourcecode) {
             else
                 {tokens.push_back(Token(keyw, TokenType::Identifier));}
             continue;
-
         }
         if (src[0] == '"') {
             src.erase(src.begin());
