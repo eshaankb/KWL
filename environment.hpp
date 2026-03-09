@@ -7,6 +7,7 @@
 
 // Forward declaration
 class StructDecl;
+#include "ast.hpp"
 
 class Environment{
     public:
