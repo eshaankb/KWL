@@ -1,12 +1,16 @@
 #include<string>
 #include <charconv>
 #include <cctype>
+#include <fstream>
 #include"types.hpp"
 #include"values.hpp"
 #include"ast.hpp"
+#include"parser.hpp"
 #include"interpreter.hpp"
 #include<iostream>
 #include "environment.hpp"
+#include <filesystem>
+namespace fs = std::filesystem;
 /*
 ========================
 HELPER FUNCTIONS
@@ -330,16 +334,16 @@ RuntimeVal* EvalStruct(StructDecl* decl, Environment& env){
 }
 
 RuntimeVal* EvalConstructorCall(ConstructorCallExpr call, Environment& env){
-    // className is known
+    
     StructDecl* classDecl = env.getClass(call.className);
     if (!classDecl) {
         throw std::runtime_error("Runtime Error: Class '" + call.className + "' not found");
     }
     
-    // Create a new instance with default field values
+    
     StructureVal* instance = new StructureVal({}, classDecl->name);
     
-    // initialize defaults
+    
     for (const auto& field : classDecl->vars) {
         RuntimeVal* initVal;
             switch(field.second){
@@ -362,7 +366,6 @@ RuntimeVal* EvalConstructorCall(ConstructorCallExpr call, Environment& env){
                 instance->fields[field.first] = initVal;
     }
         
-        // apply constructor parameters if provided
         if (classDecl->constructor && !call.arguments.empty()) {
             if (call.arguments.size() != classDecl->constructor->params.size()) {
                 throw std::runtime_error("Runtime Error: Constructor expects " + std::to_string(classDecl->constructor->params.size()) + 
@@ -381,6 +384,48 @@ RuntimeVal* EvalConstructorCall(ConstructorCallExpr call, Environment& env){
 
 RuntimeVal* EvalCallStruct(CallStructExpr* call, Environment& env){
     RuntimeVal* obj = Eval(call->object, env);
+    
+    if (auto ident = dynamic_cast<Identifier*>(call->object)) {
+        RuntimeVal* potentialModule = nullptr;
+        try {
+            potentialModule = env.getVal(ident->name);
+        } catch (...) {
+        }
+        
+        if (potentialModule && (uintptr_t)potentialModule > 1000) { 
+            Environment* modEnv = reinterpret_cast<Environment*>(potentialModule);
+            try {
+                StructDecl* classDecl = modEnv->getClass(call->field);
+                if (classDecl) {
+                    StructureVal* instance = new StructureVal({}, classDecl->name);
+                    for (const auto& field : classDecl->vars) {
+                        RuntimeVal* initVal;
+                        switch(field.second){
+                            case ValueType::Integer:
+                                initVal = new IntVal(0);
+                                break;
+                            case ValueType::Float:
+                                initVal = new FloatVal(0.0);
+                                break;
+                            case ValueType::String:
+                                initVal = new StringVal("");
+                                break;
+                            case ValueType::Bool:
+                                initVal = new BoolVal(false);
+                                break;
+                            default:
+                                initVal = new Nullval();
+                                break;
+                        }
+                        instance->fields[field.first] = initVal;
+                    }
+                    return instance;
+                }
+            } catch (...) {
+            }
+        }
+    }
+    
     if(obj->type!=ValueType::Structure){
         throw std::runtime_error("Type Error: Attempting to access field of non-structure value");
     }
@@ -402,7 +447,6 @@ RuntimeVal* EvalVarDecl(VarDecl decl, Environment& env){
             if (initVal->type != ValueType::Structure) {
                 throw std::runtime_error("Type Error: Expected structure initializer for variable '" + decl.name + "'");
             }
-            // optionally check class name match
             if (!decl.structTypeName.empty()) {
                 StructureVal& sv = static_cast<StructureVal&>(*initVal);
                 if (sv.className != decl.structTypeName) {
@@ -514,6 +558,74 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
     }
     std::cerr << "[EVAL] node kind=" << printNodeType(astNode->kind) << "\n";
     switch(astNode->kind){
+        case NodeType::ImportStatement: {
+            auto* import = dynamic_cast<ImportStmt*>(astNode);
+            std::string modPath = import->modulePath;
+
+            if (!modPath.empty() && ((modPath.front() == '"' && modPath.back() == '"') ||
+                                     (modPath.front() == '\'' && modPath.back() == '\''))) {
+                modPath = modPath.substr(1, modPath.size() - 2);
+            }
+
+            if (modPath.size() >= 2 && modPath[0] == '.' && modPath[1] == '/') {
+                modPath = modPath.substr(2);
+            }
+
+            if (modPath.find(".kwl") == std::string::npos) {
+                modPath += ".kwl";
+            }
+
+            std::vector<fs::path> searchPaths = {
+                fs::current_path(),
+                fs::current_path() / "modules",
+                "/usr/local/lib/kwl/"
+            };
+
+            fs::path targetFilePath;
+            bool found = false;
+
+            for (const auto& dir : searchPaths) {
+                fs::path fullPath = dir / modPath;
+                if (fs::exists(fullPath)) {
+                    targetFilePath = fullPath;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                throw std::runtime_error("Module '" + modPath + "' not found in search paths.");
+            }
+
+            std::ifstream modfile(targetFilePath);
+            if (!modfile.is_open()) {
+                throw std::runtime_error("Failed to open module file: " + targetFilePath.string());
+            }
+            std::string modsrc((std::istreambuf_iterator<char>(modfile)), std::istreambuf_iterator<char>());
+            modfile.close();
+            Parser modParser;
+            Program modAST = modParser.produceAST(modsrc);
+            Environment* modEnv = new Environment();
+            for (auto stmt : modAST.body) {
+                if (stmt->kind == NodeType::ExportDeclaration) {
+                    auto* exportDecl = dynamic_cast<ExportDecl*>(stmt);
+                    Eval(exportDecl->decl, *modEnv);
+                }
+            }
+            if (import->importAll) {
+                for (const auto& [name, val] : modEnv->variables) {
+                    env.declareVal(name, val->clone());
+                }
+            } else {
+                if (!import->alias.empty()) {
+                    env.variables[import->alias] = reinterpret_cast<RuntimeVal*>(modEnv);
+                }
+            }
+            return new Nullval();
+        }
+        case NodeType::ExportDeclaration: {
+            return new Nullval();
+        }
         case NodeType::IfStatement: {
             return EvalIfStmt(dynamic_cast<IfStmt*>(astNode), env);
         }
@@ -547,6 +659,35 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
             return EvalStruct(structure, env);
 
         }case NodeType::CallExpression: {
+            
+            if (auto callExpr = dynamic_cast<CallExpr*>(astNode)) {
+                RuntimeVal* calleeVal = Eval(callExpr->callee, env);
+                if (calleeVal && calleeVal->type == ValueType::Structure) {
+                    StructureVal& structVal = static_cast<StructureVal&>(*calleeVal);
+                    try {
+                        StructDecl* classDecl = env.getClass(structVal.className);
+                        if (classDecl && classDecl->constructor && !callExpr->arguments.empty()) {
+                            if (callExpr->arguments.size() != classDecl->constructor->params.size()) {
+                                throw std::runtime_error("Runtime Error: Constructor expects " + std::to_string(classDecl->constructor->params.size()) + 
+                                                       " arguments but got " + std::to_string(callExpr->arguments.size()));
+                            }
+                            for (size_t i = 0; i < callExpr->arguments.size(); i++) {
+                                RuntimeVal* argVal = Eval(callExpr->arguments[i], env);
+                                if (argVal->type != classDecl->constructor->params[i].second) {
+                                    throw std::runtime_error("Type Error: Constructor argument type mismatch for parameter '" + 
+                                                           classDecl->constructor->params[i].first + "'");
+                                }
+                                structVal.fields[classDecl->constructor->params[i].first] = argVal;
+                            }
+                        }
+                    } catch (const std::runtime_error& e) {
+
+                    }
+                    return calleeVal;
+                }
+                return new Nullval();
+            }
+            
             if (auto callStructExpr = dynamic_cast<CallStructExpr*>(astNode)) {
                 return EvalCallStruct(callStructExpr, env);
             }
@@ -565,7 +706,7 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
             return EvalBinaryExpr(*binop, env);
         }case NodeType::ReturnStatement: {
             auto* stmt = static_cast<ReturnStmt*>(astNode);
-            RuntimeVal* val = new Nullval(); // Default return
+            RuntimeVal* val = new Nullval();
             
             if (stmt->value) {
                 val = Eval(stmt->value, env);

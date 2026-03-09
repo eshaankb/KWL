@@ -1,4 +1,4 @@
-|import\standard>loginout\| with log;
+import\standard>loginout\ with log;
 
 log,wt['Hello, World!'];
 int response = log,rd['How many numbers do you want to fizzbuzz?'];

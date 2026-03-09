@@ -71,7 +71,47 @@ Stmt* Parser::ParseStmt() {
     }
     // variable declaration: int x = ...
     Stmt* stmt = nullptr;
-    if(peek().type == TokenType::Keyword&&peek().value=="crclass"){ 
+    // Handle import statement
+    if (peek().type == TokenType::Keyword && peek().value == "import") {
+        eat(); // consume 'import'
+        expect(TokenType::Backslash, "Expected '\\' after 'import'");
+        std::string path;
+        if (peek().type == TokenType::Identifier || peek().type == TokenType::StringLiteral) {
+            path = eat().value;
+        } else {
+            throw std::runtime_error("Expected module path after 'import\\'");
+        }
+        expect(TokenType::Backslash, "Expected '\\' after module path");
+        if (peek().type == TokenType::Keyword && peek().value == "with") {
+            eat(); // consume 'with'
+            std::string alias;
+            if (peek().type == TokenType::Identifier) {
+                alias = eat().value;
+            } else {
+                throw std::runtime_error("Expected alias after 'with'");
+            }
+            stmt = new ImportStmt(path, alias, false);
+        } else if (peek().type == TokenType::Keyword && peek().value == "all") {
+            eat(); // consume 'all'
+            stmt = new ImportStmt(path, "", true);
+        } else {
+            throw std::runtime_error("Expected 'with' or 'all' after import path");
+        }
+        expect(TokenType::Semicolon, "Expected ';' after import statement");
+    }
+    else if (peek().type == TokenType::Keyword && peek().value == "pub") {
+        eat(); // consume 'pub'
+        if (peek().type == TokenType::TypeIdent && peek(1).type == TokenType::Backtick) {
+            stmt = new ExportDecl(ParseFunctionDecl());
+        } else if (peek().type == TokenType::TypeIdent) {
+            stmt = new ExportDecl(ParseVarDecl());
+        } else if (peek().type == TokenType::Keyword && peek().value == "crclass") {
+            stmt = new ExportDecl(ParseClassDecl());
+        } else {
+            throw std::runtime_error("Expected declaration after 'pub'");
+        }
+    }
+    else if(peek().type == TokenType::Keyword&&peek().value=="crclass"){ 
         stmt = ParseClassDecl();
     }else if(peek().type == TokenType::Keyword && peek().value == "return") {
         stmt = ParseReturn();
@@ -84,6 +124,11 @@ Stmt* Parser::ParseStmt() {
             stmt = ParseFunctionDecl();
         }else{
             stmt = ParseVarDecl();}
+    }
+    // Check for namespaced type: identifier , identifier identifier (e.g., ta,dog jim = ...)
+    else if (peek().type == TokenType::Identifier && peek(1).type == TokenType::Comma && peek(2).type == TokenType::Identifier && peek(3).type == TokenType::Identifier) {
+        std::cerr << "[PARSER] Matched namespaced type: " << peek().value << "," << peek(2).value << "\n";
+        stmt = ParseVarDecl();
     }
     else if (peek().type == TokenType::Identifier && structNames.contains(peek().value)) {
         std::cerr << "[PARSER] Matched Identifier struct: " << peek().value << "\n";
@@ -99,10 +144,10 @@ Stmt* Parser::ParseStmt() {
         stmt = ParseExpr();
     }
 
-    if (peek().type == TokenType::Semicolon&&(!(stmt->kind==NodeType::IfStatement||stmt->kind==NodeType::FunctionDeclaration||stmt->kind==NodeType::StructureDeclaration))) {
+    if (stmt && peek().type == TokenType::Semicolon && (!(stmt->kind==NodeType::IfStatement||stmt->kind==NodeType::FunctionDeclaration||stmt->kind==NodeType::StructureDeclaration||stmt->kind==NodeType::ImportStatement||stmt->kind==NodeType::ExportDeclaration))) {
         std::cerr << "[PARSER] ParseStmt eating semicolon\n";
         eat();
-    } else if(!(stmt->kind==NodeType::IfStatement||stmt->kind==NodeType::FunctionDeclaration||stmt->kind==NodeType::StructureDeclaration)){
+    } else if(stmt && !(stmt->kind==NodeType::IfStatement||stmt->kind==NodeType::FunctionDeclaration||stmt->kind==NodeType::StructureDeclaration||stmt->kind==NodeType::ImportStatement||stmt->kind==NodeType::ExportDeclaration)){
         throw std::runtime_error("Syntax Error: Expected ';' at the end of statement, but found '" + peek().value + "'");
     }
     std::cerr << "[PARSER] ParseStmt returning\n";
@@ -258,6 +303,7 @@ Stmt* Parser::ParseVarDecl() {
     // consume type
     ValueType type;
     std::string structName = "";
+    std::string moduleAlias = "";  // for namespaced types like ta,dog
     bool isc=false; //is constant
     Token tem;
     Token te1 = eat();
@@ -287,6 +333,16 @@ Stmt* Parser::ParseVarDecl() {
         // treat identifier as struct type
         type = ValueType::Structure;
         structName = tem.value;
+    } else if (tem.type==TokenType::Identifier && peek().type==TokenType::Comma) {
+        // Handle namespaced type: module_alias,class_name
+        moduleAlias = tem.value;
+        eat(); // consume comma
+        Token className = eat();
+        if(className.type != TokenType::Identifier) {
+            throw std::runtime_error("Expected class name after namespace comma\n");
+        }
+        type = ValueType::Structure;
+        structName = className.value;
     } else {
         throw std::runtime_error("Expected type identifier in variable declaration\n");
         return new VarDecl(ValueType::Null,"INVALID");
@@ -312,6 +368,7 @@ Stmt* Parser::ParseVarDecl() {
         throw std::runtime_error("Expected closing '\\' \n");
     }
     std::cerr << "[PARSER] ParseVarDecl returning, peek()=" << peek().value << " type=" << (int)peek().type << "\n";
+    // TODO: Pass moduleAlias to VarDecl if needed for module-namespaced types
     return new VarDecl(type, name.value, initializer, isc, structName);
 }
 

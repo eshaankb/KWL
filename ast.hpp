@@ -27,7 +27,9 @@ enum class NodeType {
     NullLiteral,
     StructureDeclaration,
     FunctionDeclaration,
-    FunctionCall
+    FunctionCall,
+    ImportStatement,
+    ExportDeclaration
 };
 
 
@@ -227,4 +229,17 @@ struct FunctionCall : public Expr {
     FunctionCall(const string& fn, const vector<Expr*>& args)
         : Expr(NodeType::FunctionCall), functionName(fn), arguments(args) {}
 };
+struct ImportStmt : public Stmt {
+    std::string modulePath;
+    std::string alias;
+    bool importAll = false;
+    ImportStmt(const std::string& path, const std::string& as = "", bool all = false)
+        : Stmt(NodeType::ImportStatement), modulePath(path), alias(as), importAll(all) {}
+};
+struct ExportDecl : public Stmt {
+    Stmt* decl;
+    ExportDecl(Stmt* d) : Stmt(NodeType::ExportDeclaration), decl(d) {}
+};
+
+
 #endif

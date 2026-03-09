@@ -14,6 +14,7 @@ class Environment{
     Environment();
     Environment(Environment* parentEnv);
     Environment(Environment&&) = default;
+    std::unordered_map<std::string,RuntimeVal* > variables;
     Environment& operator=(Environment&&) = default;
     void declareVal (std::string varname, RuntimeVal* value, bool immut=false);
     void assignVal(std::string varname, RuntimeVal* value);
@@ -23,7 +24,6 @@ class Environment{
     StructDecl* getClass(std::string className);
     protected:
     Environment* parent;
-    std::unordered_map<std::string,RuntimeVal* > variables;
     std::unordered_map<std::string,bool> IsConst;
     std::unordered_map<std::string, StructDecl*> classes;
 };
