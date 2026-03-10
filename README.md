@@ -118,7 +118,7 @@ sys`update_physics [
 | **Numeric** | `int`, `int64`, `fl`, `fl64` | Signed integers and floats (32/64 bit). |
 | **Text** | `str` | UTF-8 String (Heap-allocated). |
 | **Logic** | `bool` | Boolean (`true`/`false`). |
-| **Collections** | `arr\T\`, `mtx\T\` | Dynamic arrays and multi-dim matrices. |
+| **Collections** | `arr\T\`, `mtx\T\` | Dynamic arrays and multi-dim matrices. Elements are delimited by  |
 | **Geometry** | `vec2\T\`, `vec3\T\` | Native SIMD-optimized vectors. |
 | **Graphics** | `sprite`, `tex` | Managed graphics handles for `glab`. |
 

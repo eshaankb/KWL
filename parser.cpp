@@ -476,23 +476,31 @@ Expr* Parser::ParsePrimExpr() {
                 expr = new RangeExpr(startExpr, endExpr);
                 break;
             }
+            TokenType ArrayType;
             // Otherwise, parse array literal
+            if(peek().type==TokenType::RBracket){
+                // empty array
+                eat(); // consume ]
+                expr = new ArrayLiteral(elements);
+                break;
+            }else if(peek().type==TokenType::IntLiteral||peek().type==TokenType::FloatLiteral||peek().type==TokenType::StringLiteral||peek().type==TokenType::BoolLiteral){
+                ArrayType=peek().type;
+            }
             while (notEOF() && peek().type != TokenType::RBracket) {
                 // Parse array element - handle literal only for simple case
                 Token elemTok = eat();
-                if (elemTok.type == TokenType::IntLiteral) {
-                    elements.push_back(new Literal(elemTok.value));
-                } else if (elemTok.type == TokenType::FloatLiteral) {
-                    elements.push_back(new Literal(elemTok.value));
-                } else if (elemTok.type == TokenType::StringLiteral) {
-                    elements.push_back(new Literal(elemTok.value));
-                } else if (elemTok.type == TokenType::BoolLiteral) {
-                    elements.push_back(new Literal(elemTok.value));
-                } else {
-                    throw std::runtime_error("Unexpected token in array: " + elemTok.value);
+                if(elemTok.type != ArrayType) {
+                    if(elemTok.type == TokenType::IntLiteral || elemTok.type == TokenType::FloatLiteral|| elemTok.type == TokenType::StringLiteral || elemTok.type == TokenType::BoolLiteral) {
+                            throw std::runtime_error("Array elements must be of the same type");
+                    } else {
+                   throw std::runtime_error("Unexpected token in array: " + elemTok.value);}
                 }
-                if (peek().type == TokenType::Comma) {
-                    eat(); // consume comma
+                if (peek().type == TokenType::Semicolon) {
+                    eat(); // consume semicolon
+                }else if (peek().type != TokenType::RBracket) {
+                    throw std::runtime_error("Expected ';' or ']' in array literal");
+                }else{
+                    // allow missing semicolon for last element
                 }
             }
             if (peek().type == TokenType::RBracket) {
