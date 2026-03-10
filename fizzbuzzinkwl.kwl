@@ -10,5 +10,5 @@ for/i in [1:response]{
     ]if/mod[response;3]!=0 && mod[response;5]!=0/[
         log.wt[response];
     ]
-    log.nline;
+    log,nline;
 }

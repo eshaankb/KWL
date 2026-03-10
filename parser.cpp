@@ -113,7 +113,10 @@ Stmt* Parser::ParseStmt() {
     }
     else if(peek().type == TokenType::Keyword&&peek().value=="crclass"){ 
         stmt = ParseClassDecl();
-    }else if(peek().type == TokenType::Keyword && peek().value == "return") {
+    }else if(peek().type == TokenType::Keyword&&peek().value=="tobj"){
+        stmt = ParseTrueClassDecl();
+    }
+    else if(peek().type == TokenType::Keyword && peek().value == "return") {
         stmt = ParseReturn();
     }
     else if(peek().type == TokenType::BlockKeyword && peek().value=="if"){
@@ -238,7 +241,10 @@ Stmt* Parser::ParseClassDecl() {
     StructDecl* decl = new StructDecl(className, fields);
     return decl;
 }
+ 
+Stmt* Parser::ParseTrueClassDecl() {
 
+}
 Stmt* Parser::parseIf() {
     Token control = eat();
     if(peek().type!=TokenType::Backslash){

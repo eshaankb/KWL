@@ -17,7 +17,7 @@ bool isBlockKeyword(const string& s) {
 }
 bool isKeyword(const string& s) {
     static const vector<string> keywords = {
-        "and", "or", "nt", "mod", "gbl", "mkimmutable", "crclass", "constr" , "return", "fn", "import", "pub", "with", "all"
+        "and", "or", "nt", "mod", "gbl", "mkimmutable", "crclass", "constr" , "return", "fn", "import", "pub", "with", "all", "tobj"
     };
     return find(keywords.begin(), keywords.end(), s) != keywords.end();
 }
@@ -83,9 +83,9 @@ vector<Token> tokenize(string sourcecode) {
             continue;
         }
         // Identifiers/keywords: stop at backslash
-        if (isalpha(src[0])) {
+        if (isalpha(src[0]) || src[0] == '_' || src[0] == '>') {
             string keyw;
-            while(src.size()>0 && isalpha(src[0])){
+            while(src.size()>0 && (isalpha(src[0]) || isdigit(src[0]) || src[0] == '_' || src[0] == '>' )){
                 keyw += src[0];
                 src.erase(src.begin());
             }

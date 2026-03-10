@@ -325,6 +325,8 @@ RuntimeVal* EvalIdentifier(Identifier identifier, Environment& env){
             return new StringVal(static_cast<StringVal&>(*val));
         case ValueType::Bool:
             return new BoolVal(static_cast<BoolVal&>(*val));
+        case ValueType::Array:
+            return val->clone();
         default:
             return new Nullval();
     }
@@ -534,6 +536,31 @@ RuntimeVal* EvalFunctionDecl(FunctionDecl* decl, Environment& env){
 }
 
 RuntimeVal* EvalFunctionCall(FunctionCall* call, Environment& env){
+    if (call->functionName == "wt") {
+        for (auto arg : call->arguments) {
+            RuntimeVal* val = Eval(arg, env);
+            val->print();
+        }
+        return new Nullval();
+    }
+    if (call->functionName == "nline") {
+        std::cout << std::endl;
+        return new Nullval();
+    }
+    if (call->functionName == "rd") {
+        if (call->arguments.empty()) {
+            std::string input;
+            std::getline(std::cin, input);
+            return new StringVal(input);
+        }
+        RuntimeVal* prompt = Eval(call->arguments[0], env);
+        std::cout << "";
+        prompt->print();
+        std::string input;
+        std::getline(std::cin, input);
+        return new StringVal(input);
+    }
+    
     FunctionVal* funcVal = dynamic_cast<FunctionVal*>(env.getVal(call->functionName));
     if (!funcVal) {
         throw std::runtime_error("Runtime Error: '" + call->functionName + "' is not a function");
@@ -754,6 +781,23 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
                 throw std::runtime_error("Range requires integer start and end values");
             }
             return new RangeVal(static_cast<IntVal*>(startVal)->value, static_cast<IntVal*>(endVal)->value);
+        }
+        case NodeType::IndexExpression: {
+            auto* idxExpr = dynamic_cast<IndexExpr*>(astNode);
+            RuntimeVal* object = Eval(idxExpr->object, env);
+            RuntimeVal* indexVal = Eval(idxExpr->index, env);
+            if (object->type != ValueType::Array) {
+                throw std::runtime_error("Can only index into arrays");
+            }
+            if (indexVal->type != ValueType::Integer) {
+                throw std::runtime_error("Array index must be an integer");
+            }
+            ArrayVal* arr = static_cast<ArrayVal*>(object);
+            int idx = static_cast<IntVal*>(indexVal)->value;
+            if (idx < 0 || idx >= static_cast<int>(arr->elements.size())) {
+                throw std::runtime_error("Array index out of bounds");
+            }
+            return arr->elements[idx];
         }
         default:
             std::cerr<<"Unimplemented AST node type in Eval: "<<printNodeType(astNode->kind)<<std::endl;
