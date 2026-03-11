@@ -26,4 +26,6 @@ class Environment{
     Environment* parent;
     std::unordered_map<std::string,bool> IsConst;
     std::unordered_map<std::string, StructDecl*> classes;
+public:
+    bool loginoutImported = false;
 };

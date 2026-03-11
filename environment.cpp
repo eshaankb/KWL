@@ -26,7 +26,7 @@ void Environment::assignVal (std::string varname, RuntimeVal* value){
 };
 
 Environment* Environment::resolve(std::string varname){
-    if(variables.contains(varname)){
+    if(variables.find(varname) != variables.end()){
         return this;
     }else if(parent!=nullptr){
         return parent->resolve(varname);
@@ -46,7 +46,7 @@ void Environment::declareClass(std::string className, StructDecl* classDecl) {
 }
 
 StructDecl* Environment::getClass(std::string className) {
-    if (classes.contains(className)) {
+    if (classes.find(className) != classes.end()) {
         return classes[className];
     } else if (parent != nullptr) {
         return parent->getClass(className);

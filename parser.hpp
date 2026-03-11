@@ -29,6 +29,7 @@ private:
     Stmt* ParseVarDecl();
     Stmt* ParseTrueClassDecl();
     Stmt* parseIf();
+    Stmt* ParseEl();
     BlockStmt* parseBlock();
     Stmt* ParseClassDecl();
     Stmt* ParseFunctionDecl();

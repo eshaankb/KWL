@@ -9,5 +9,6 @@ enum class ValueType {
     Structure,
     Null,
     Array,
-    Range
+    Range,
+    TrueClass
 };

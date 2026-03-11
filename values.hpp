@@ -80,6 +80,14 @@ struct StructureVal : RuntimeVal {
     };
 };
 
+struct TrueClassVal : RuntimeVal {
+    TrueClassVal() : RuntimeVal(ValueType::TrueClass) {};
+    RuntimeVal* clone() const override {
+        return new TrueClassVal();
+    }
+    void print() const override { cout << "<trueclass>"; };
+};
+
 struct FunctionVal : RuntimeVal {
     vector<pair<string, ValueType>> paramNames;
     BlockStmt* body;

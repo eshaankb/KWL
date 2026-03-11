@@ -1,9 +1,8 @@
-#ifndef AST_HPP
-#define AST_HPP
-
 #include <string>
 #include <vector>
+#include <variant>
 #include "types.hpp"
+#pragma once
 using namespace std;
 
 enum class NodeType {
@@ -59,19 +58,22 @@ public:
     vector<Stmt*> body;
     BlockStmt() : Stmt(NodeType::BlockStatement) {}
 };
-class ElseStmt : public Stmt {
-public:
-    Stmt* body;
 
-    ElseStmt(BlockStmt* b) : Stmt(NodeType::ElseStatement), body(b) {}
-};
+class ElseStmt;
+
 class IfStmt : public Stmt {
 public:
     Expr* condition;
     BlockStmt* body;
-    ElseStmt* elseBranch;
+    Stmt* elseBranch;
 
-    IfStmt(Expr* cond, BlockStmt* b, ElseStmt* e = nullptr) : Stmt(NodeType::IfStatement), condition(cond), body(b), elseBranch(e) {}
+    IfStmt(Expr* cond, BlockStmt* b, Stmt* e = nullptr) : Stmt(NodeType::IfStatement), condition(cond), body(b), elseBranch(e) {}
+};
+class ElseStmt : public Stmt {
+public:
+    Stmt* body;
+
+    ElseStmt(Stmt* b) : Stmt(NodeType::ElseStatement), body(b) {}
 };
 
 
@@ -186,6 +188,19 @@ public:
         : Stmt(NodeType::StructureDeclaration), name(n), vars(v), constructor(constr) {}
 };
 
+class FunctionDecl;
+class TrueObj : public Stmt {
+public:
+    string name;
+    vector<pair<string, ValueType>> vars;
+    vector<pair<string, FunctionDecl> > methods;
+    ConstructorDecl* constructor;
+    ValueType type = ValueType::Structure;
+
+   TrueObj(const string& n, const vector<pair<string, ValueType>>& v, const vector<pair<string, FunctionDecl> >& m, ConstructorDecl* constr = nullptr, bool immut = false)
+        : Stmt(NodeType::StructureDeclaration), name(n), vars(v), methods(m), constructor(constr) {}
+};
+
 class Assignment : public Expr {
 public:
     Expr* target;
@@ -257,6 +272,3 @@ public:
     RangeExpr(Expr* s, Expr* e)
         : Expr(NodeType::RangeExpression), start(s), end(e) {}
 };
-
-
-#endif

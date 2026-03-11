@@ -1,14 +1,21 @@
-import\standard>loginout\ with log;
+import\loginout\ with log;
 
-log,wt['Hello, World!'];
-int response = log,rd['How many numbers do you want to fizzbuzz?'];
-for/i in [1:response]{
-    if/mod[response;3]==0/[
-        log.wt['Fizz'];
-    ]if/mod[response;5]==0/[
-        log.wt['Buzz'];
-    ]if/mod[response;3]!=0 && mod[response;5]!=0/[
-        log.wt[response];
+void`fn fizzbuzz\int n\\ [
+    if \\n > 15\\ [
+        return\\  \\;
     ]
-    log,nline;
-}
+    
+    if \\n mod 15 == 0\\ [
+        log,wt\\'FizzBuzz'\\;
+    ] el if\\n mod 3 == 0\\ [
+        log,wt\\'Fizz'\\;
+    ] el if\\n mod 5 == 0\\ [
+        log,wt\\'Buzz'\\;
+    ] el [
+        log,wt\\n\\;
+    ]
+    
+    fizzbuzz\\n + 1\\;
+]
+
+fizzbuzz\\1\\;

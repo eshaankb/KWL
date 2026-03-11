@@ -2,6 +2,7 @@
 #include <charconv>
 #include <cctype>
 #include <fstream>
+#include <sstream>
 #include"types.hpp"
 #include"values.hpp"
 #include"ast.hpp"
@@ -510,6 +511,7 @@ std::string printNodeType(NodeType t){
         case NodeType::Literal: return "Literal";
         case NodeType::Identifier: return "Identifier";
         case NodeType::CallExpression: return "CallExpression";
+        case NodeType::FunctionCall: return "FunctionCall";
         case NodeType::IndexExpression: return "IndexExpression";
         case NodeType::IfStatement: return "IfStatement";
         case NodeType::ElseStatement: return "ElseStatement";
@@ -536,6 +538,12 @@ RuntimeVal* EvalFunctionDecl(FunctionDecl* decl, Environment& env){
 }
 
 RuntimeVal* EvalFunctionCall(FunctionCall* call, Environment& env){
+    if (call->functionName == "wt" || call->functionName == "rd" || 
+        call->functionName == "nline" || call->functionName == "fmstr") {
+        if (!env.loginoutImported) {
+            throw std::runtime_error("Runtime Error: Function '" + call->functionName + "' requires importing 'loginout' module. Use: import\\standard\\>loginout\\ with log;");
+        }
+    }
     if (call->functionName == "wt") {
         for (auto arg : call->arguments) {
             RuntimeVal* val = Eval(arg, env);
@@ -559,6 +567,59 @@ RuntimeVal* EvalFunctionCall(FunctionCall* call, Environment& env){
         std::string input;
         std::getline(std::cin, input);
         return new StringVal(input);
+    }
+    if (call->functionName == "fmstr") {
+        if (call->arguments.empty()) {
+            throw std::runtime_error("Runtime Error: fmstr requires a format string argument");
+        }
+        RuntimeVal* arg = Eval(call->arguments[0], env);
+        StringVal* strVal = dynamic_cast<StringVal*>(arg);
+        if (!strVal) {
+            throw std::runtime_error("Runtime Error: fmstr requires a string argument");
+        }
+        std::string fmt = strVal->value;
+        std::string result;
+        size_t pos = 0;
+        size_t pipeStart = fmt.find('|');
+        while (pipeStart != std::string::npos) {
+            result += fmt.substr(pos, pipeStart - pos);
+            size_t pipeEnd = fmt.find('|', pipeStart + 1);
+            if (pipeEnd == std::string::npos) {
+                throw std::runtime_error("Runtime Error: Unmatched pipe in fmstr");
+            }
+            std::string expr = fmt.substr(pipeStart + 1, pipeEnd - pipeStart - 1);
+            try {
+                RuntimeVal* evalResult = nullptr;
+                bool isComplex = expr.find(',') != std::string::npos || 
+                                 expr.find('+') != std::string::npos ||
+                                 expr.find('-') != std::string::npos ||
+                                 expr.find('*') != std::string::npos ||
+                                 expr.find('/') != std::string::npos;
+                if (!isComplex) {
+                    Identifier id(expr);
+                    evalResult = EvalIdentifier(id, env);
+                } else {
+                    Parser parser;
+                    Program ast = parser.produceAST(expr);
+                    if (!ast.body.empty()) {
+                        evalResult = Eval(ast.body[0], env);
+                    }
+                }
+                if (evalResult) {
+                    std::ostringstream oss;
+                    std::streambuf* oldBuf = std::cout.rdbuf(oss.rdbuf());
+                    evalResult->print();
+                    std::cout.rdbuf(oldBuf);
+                    result += oss.str();
+                }
+            } catch (...) {
+                throw std::runtime_error("Runtime Error: Failed to evaluate expression in fmstr: " + expr);
+            }
+            pos = pipeEnd + 1;
+            pipeStart = fmt.find('|', pos);
+        }
+        result += fmt.substr(pos);
+        return new StringVal(result);
     }
     
     FunctionVal* funcVal = dynamic_cast<FunctionVal*>(env.getVal(call->functionName));
@@ -603,6 +664,12 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
                 modPath = modPath.substr(2);
             }
 
+            // Handle > as directory separator (e.g., standard>loginout -> loginout)
+            size_t sepPos = modPath.find('>');
+            if (sepPos != std::string::npos) {
+                modPath = modPath.substr(sepPos + 1);
+            }
+
             if (modPath.find(".kwl") == std::string::npos) {
                 modPath += ".kwl";
             }
@@ -610,6 +677,7 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
             std::vector<fs::path> searchPaths = {
                 fs::current_path(),
                 fs::current_path() / "modules",
+                fs::current_path() / "modules" / "standard",
                 "/usr/local/lib/kwl/"
             };
 
@@ -652,6 +720,9 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
                 if (!import->alias.empty()) {
                     env.variables[import->alias] = reinterpret_cast<RuntimeVal*>(modEnv);
                 }
+            }
+            if (modPath.find("loginout") != std::string::npos) {
+                env.loginoutImported = true;
             }
             return new Nullval();
         }
