@@ -25,6 +25,7 @@ private:
     Stmt* ParseStmt();
     Expr* ParseExpr();
     Expr* ParseBinaryExpr(int precedence = 0);
+    Expr* ParseUnaryExpr();
     Expr* ParsePrimExpr();
     Stmt* ParseVarDecl();
     Stmt* ParseTrueClassDecl();

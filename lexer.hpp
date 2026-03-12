@@ -13,7 +13,7 @@ enum class TokenType {
     FloatLiteral,
     StringLiteral,
     BoolLiteral,
-    ArithmeticOp,   // + - * / mod
+    ArithmeticOp,   // + - * / mod **
     LogicalOp,      // and or nt
     ComparisonOp,   // == n= < > =< >=
     AssignmentOp,   // = += -= etc

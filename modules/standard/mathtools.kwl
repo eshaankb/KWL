@@ -26,34 +26,45 @@ pub fl64`fn sqrt\fl64 n\; [
     if \n < 0.0\ [
         return\0.0\;
     ]
-    return\n\;
-]
-
-pub fl64`fn pow\fl64 base; fl64 exp\; [
-    return\base\;
+    return\n**(0.5)\;
 ]
 
 pub fl64`fn floor\fl64 n\; [
-    return\n\;
+    return\n -\n mod 1\\;
 ]
 
 pub fl64`fn ceil\fl64 n\; [
-    return\n\;
+    return\n-\n mod 1\ +1\;
 ]
 
 pub fl64`fn round\fl64 n\; [
-    return\n\;
+    if\n mod 1 >= 0.5\ [
+        return\ceil\n\\
+    ]
+    return\floor\n\\;
 ]
 
 pub fl64`fn sin\fl64 n\; [
-    return\n\;
+    n= n mod 2*piconst;
+    bool isneg =false;
+    if\n n= \n mod piconst\\[
+        isneg=true;
+    ]
+    n = n mod piconst;
+    ans = \16n\piconst-n\\/\5\piconst**2\-4n\piconst-n\\;
+    if\isneg\[
+        ans = -ans;
+    ]
+    return\ans\;
 ]
 
 pub fl64`fn cos\fl64 n\; [
+    n = sin\n+\piconst/2\\;
     return\n\;
 ]
 
 pub fl64`fn tan\fl64 n\; [
+    n = sin\n\/cos\n\
     return\n\;
 ]
 
@@ -76,9 +87,9 @@ pub int64`fn double_val\int64 n\; [
 ]
 
 pub fl64`fn deg_to_rad\fl64 deg\; [
-    return\deg * PI / 180.0\;
+    return\deg * piconst / 180.0\;
 ]
 
 pub fl64`fn rad_to_deg\fl64 rad\; [
-    return\rad * 180.0 / PI\;
+    return\rad * 180.0 / piconst\;
 ]

@@ -135,6 +135,9 @@ IntVal EvalIntBExpr(IntVal left, IntVal right, std::string op){
         if(right.value!=0){
         result = left.value%right.value;
         works=true;}
+    }else if(op=="**"){
+        result = pow(left.value,right.value);
+        works=true;
     }
     if(works){
         return(IntVal(result));
@@ -260,6 +263,9 @@ FloatVal EvalFloatBExpr(FloatVal left, FloatVal right, std::string op){
         if(right.value!=0){
         result = fmod(left.value, right.value);
         works=true;}
+    }else if(op=="**"){
+        result = pow(left.value,right.value);
+        works=true;
     }
     if(works){
         return(FloatVal(result));
@@ -816,7 +822,29 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
         case NodeType::BinaryExpression: {
             auto* binop = dynamic_cast<BinaryExpr*>(astNode);
             return EvalBinaryExpr(*binop, env);
-        }case NodeType::ReturnStatement: {
+        }
+        case NodeType::UnaryExpression: {
+            auto* unop = dynamic_cast<UnaryExpr*>(astNode);
+            RuntimeVal* operand = Eval(unop->operand, env);
+            if (unop->op == "-") {
+                if (operand->type == ValueType::Integer) {
+                    return new IntVal(-static_cast<IntVal*>(operand)->value);
+                } else if (operand->type == ValueType::Float) {
+                    return new FloatVal(-static_cast<FloatVal*>(operand)->value);
+                } else {
+                    throw std::runtime_error("Unary minus operator requires numeric operand");
+                }
+            } else if (unop->op == "nt") {
+                if (operand->type == ValueType::Bool) {
+                    return new BoolVal(!static_cast<BoolVal*>(operand)->value);
+                } else {
+                    throw std::runtime_error("Logical 'nt' (not) operator requires boolean operand");
+                }
+            } else {
+                throw std::runtime_error("Unknown unary operator: " + unop->op);
+            }
+        }
+        case NodeType::ReturnStatement: {
             auto* stmt = static_cast<ReturnStmt*>(astNode);
             RuntimeVal* val = new Nullval();
             

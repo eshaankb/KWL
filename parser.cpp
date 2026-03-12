@@ -476,7 +476,7 @@ Expr* Parser::ParseExpr() {    std::cerr << "[PARSER] ParseExpr\n";    return Pa
 }
 
 Expr* Parser::ParseBinaryExpr(int precedence) {
-    Expr* left = ParsePrimExpr();
+    Expr* left = ParseUnaryExpr();
     if (!left) return nullptr;
     std::cerr << "[PARSER] ParseBinaryExpr left kind=" << (left ? (int)left->kind : -1) << "\n";
 
@@ -501,6 +501,20 @@ Expr* Parser::ParseBinaryExpr(int precedence) {
     }
 
     return left;
+}
+
+Expr* Parser::ParseUnaryExpr() {
+    if (peek().type == TokenType::ArithmeticOp && peek().value == "-") {
+        eat();
+        Expr* operand = ParseUnaryExpr();
+        return new UnaryExpr(operand, "-");
+    }
+    if (peek().type == TokenType::LogicalOp && peek().value == "nt") {
+        eat();
+        Expr* operand = ParseUnaryExpr();
+        return new UnaryExpr(operand, "nt");
+    }
+    return ParsePrimExpr();
 }
 
 Expr* Parser::ParseArrayLiteral() {
@@ -629,16 +643,18 @@ Expr* Parser::ParsePrimExpr() {
             bool prevInArgumentList = inArgumentList;
             inArgumentList = true;
             while (notEOF()) {
-                std::cerr << "[PARSER] In backslash arg loop, peek=" << peek().value << " type=" << (int)peek().type << "\n";
+                std::cerr << "[PARSER] In backslash arg loop, peek=" << peek().value << " type=" << (int)peek().type << "\n"; 
+                bool foundClBslash = false;
                 if (peek().type == TokenType::Backslash) {
                     std::cerr << "[PARSER] Found closing backslash, eating and breaking\n";
                     eat(); // consume closing backslash
+                    foundClBslash = true;
                     break;
                 }
                 std::cerr << "[PARSER] About to parse arg expression\n";
                 args.push_back(ParseExpr());
                 std::cerr << "[PARSER] Parsed arg, now peek=" << peek().value << " type=" << (int)peek().type << "\n";
-                if (peek().type == TokenType::Semicolon) {
+                if (peek().type == TokenType::Semicolon&&!foundClBslash) {
                     std::cerr << "[PARSER] Eating semicolon separator\n";
                     eat();
                     continue;

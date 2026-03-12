@@ -203,7 +203,7 @@ vector<Token> tokenize(string sourcecode) {
             src.erase(src.begin());
             continue;
         }
-        if (src[0]=='+'||src[0]=='-'||src[0]=='/'||src[0]=='*'||src[0]=='%'){
+        if (src[0]=='+'||src[0]=='-'||src[0]=='/'||src[0]=='*'){
             if (src.size() >= 2 && src[0] == '*' && src[1] == '*') {
                 tokens.push_back(Token("**", TokenType::ArithmeticOp));
                 src.erase(src.begin());
