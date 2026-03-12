@@ -1,0 +1,84 @@
+pub fl64 gbl piconst = 3.14159265359;
+pub fl64 gbl econst = 2.71828182845;
+
+pub fl64`fn abs\fl64 n\; [
+    if \n < 0.0\ [
+        return\n * -1.0\;
+    ]
+    return\n\;
+]
+
+pub fl64`fn min\fl64 a; fl64 b\; [
+    if \a < b\ [
+        return\a\;
+    ]
+    return\b\;
+]
+
+pub fl64`fn max\fl64 a; fl64 b\; [
+    if \a > b\ [
+        return\a\;
+    ]
+    return\b\;
+]
+
+pub fl64`fn sqrt\fl64 n\; [
+    if \n < 0.0\ [
+        return\0.0\;
+    ]
+    return\n\;
+]
+
+pub fl64`fn pow\fl64 base; fl64 exp\; [
+    return\base\;
+]
+
+pub fl64`fn floor\fl64 n\; [
+    return\n\;
+]
+
+pub fl64`fn ceil\fl64 n\; [
+    return\n\;
+]
+
+pub fl64`fn round\fl64 n\; [
+    return\n\;
+]
+
+pub fl64`fn sin\fl64 n\; [
+    return\n\;
+]
+
+pub fl64`fn cos\fl64 n\; [
+    return\n\;
+]
+
+pub fl64`fn tan\fl64 n\; [
+    return\n\;
+]
+
+pub fl64`fn clamp\fl64 val; fl64 min_val; fl64 max_val\; [
+    if \val < min_val\ [
+        return\min_val\;
+    ]
+    if \val > max_val\ [
+        return\max_val\;
+    ]
+    return\val\;
+]
+
+pub fl64`fn lerp\fl64 a; fl64 b; fl64 t\; [
+    return\a + \b - a\ * t\;
+]
+
+pub int64`fn double_val\int64 n\; [
+    return\n * 2\;
+]
+
+pub fl64`fn deg_to_rad\fl64 deg\; [
+    return\deg * PI / 180.0\;
+]
+
+pub fl64`fn rad_to_deg\fl64 rad\; [
+    return\rad * 180.0 / PI\;
+]

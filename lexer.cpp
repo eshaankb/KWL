@@ -82,10 +82,9 @@ vector<Token> tokenize(string sourcecode) {
             //tokens.push_back(num, isFloat ? FloatLiteral : IntLiteral);
             continue;
         }
-        // Identifiers/keywords: stop at backslash
-        if (isalpha(src[0]) || src[0] == '_' || src[0] == '>') {
+        if (isalpha(src[0]) || src[0] == '_') {
             string keyw;
-            while(src.size()>0 && (isalpha(src[0]) || isdigit(src[0]) || src[0] == '_' || src[0] == '>' )){
+            while(src.size()>0 && (isalpha(src[0]) || isdigit(src[0]) || src[0] == '_')){
                 keyw += src[0];
                 src.erase(src.begin());
             }
@@ -204,9 +203,15 @@ vector<Token> tokenize(string sourcecode) {
             src.erase(src.begin());
             continue;
         }
-        if (src[0]=='+'||src[0]=='-'||src[0]=='/'||src[0]=='*'){
-            tokens.push_back(Token(string(1,src[0]),TokenType::ArithmeticOp));
-            src.erase(src.begin());
+        if (src[0]=='+'||src[0]=='-'||src[0]=='/'||src[0]=='*'||src[0]=='%'){
+            if (src.size() >= 2 && src[0] == '*' && src[1] == '*') {
+                tokens.push_back(Token("**", TokenType::ArithmeticOp));
+                src.erase(src.begin());
+                src.erase(src.begin());
+            } else {
+                tokens.push_back(Token(string(1,src[0]),TokenType::ArithmeticOp));
+                src.erase(src.begin());
+            }
             continue;
         }  if (src[0]==';'){
             tokens.push_back(Token(string(1,src[0]),TokenType::Semicolon));

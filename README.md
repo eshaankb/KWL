@@ -5,7 +5,8 @@
 
 ## **1. Lexical & Syntax Essentials**
 
-* **Grouping:** `\` and `\\` replace `(` and `)`.
+* **Grouping:** `\` replaces `(` and `)`.
+* *Note*: `\` is distinct from `\\`
 * **Blocks:** `[` and `]` replace `{` and `}`.
 * **Member Access/Namespace:** `,` replaces `.` (e.g., `math,pi`).
 * **Line End:** `;` is required.

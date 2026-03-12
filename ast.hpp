@@ -188,18 +188,6 @@ public:
         : Stmt(NodeType::StructureDeclaration), name(n), vars(v), constructor(constr) {}
 };
 
-class FunctionDecl;
-class TrueObj : public Stmt {
-public:
-    string name;
-    vector<pair<string, ValueType>> vars;
-    vector<pair<string, FunctionDecl> > methods;
-    ConstructorDecl* constructor;
-    ValueType type = ValueType::Structure;
-
-   TrueObj(const string& n, const vector<pair<string, ValueType>>& v, const vector<pair<string, FunctionDecl> >& m, ConstructorDecl* constr = nullptr, bool immut = false)
-        : Stmt(NodeType::StructureDeclaration), name(n), vars(v), methods(m), constructor(constr) {}
-};
 
 class Assignment : public Expr {
 public:
@@ -238,6 +226,18 @@ struct FunctionDecl : public Stmt {
     BlockStmt* body;
     FunctionDecl(const string& n, const vector<VarDecl*>& params, BlockStmt* b, ValueType* rt = nullptr)
         : Stmt(NodeType::FunctionDeclaration), name(n), parameters(params), body(b), returnType(rt) {}
+};
+
+class TrueObj : public Stmt {
+public:
+    string name;
+    vector<pair<string, ValueType>> vars;
+    vector<pair<string, FunctionDecl> > methods;
+    ConstructorDecl* constructor;
+    ValueType type = ValueType::Structure;
+
+   TrueObj(const string& n, const vector<pair<string, ValueType>>& v, const vector<pair<string, FunctionDecl> >& m, ConstructorDecl* constr = nullptr, bool immut = false)
+        : Stmt(NodeType::StructureDeclaration), name(n), vars(v), methods(m), constructor(constr) {}
 };
 
 struct FunctionCall : public Expr {

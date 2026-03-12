@@ -120,7 +120,7 @@ Stmt* Parser::ParseStmt() {
     else if(peek().type == TokenType::Keyword && peek().value == "return") {
         stmt = ParseReturn();
     }
-    else if(peek().type == TokenType::BlockKeyword && peek().value=="if"){
+    else if(peek().value=="if"){
         stmt = parseIf();}
     else if (peek().type == TokenType::TypeIdent) {
         std::cerr << "[PARSER] Matched TypeIdent\n";
@@ -172,7 +172,7 @@ Stmt* Parser::ParseFunctionDecl() {
         params.push_back(static_cast<VarDecl*>(ParseVarDecl()));
         if (peek().type == TokenType::Semicolon) eat();
     }
-    eat(); // consume ']'
+    eat(); // consume ''
     BlockStmt* body = parseBlock();
     FunctionDecl* decl = new FunctionDecl(fnName, params, body);
     return decl;
@@ -481,6 +481,11 @@ Expr* Parser::ParseBinaryExpr(int precedence) {
     std::cerr << "[PARSER] ParseBinaryExpr left kind=" << (left ? (int)left->kind : -1) << "\n";
 
     while (notEOF()) {
+
+        if (peek().type == TokenType::Backslash)
+        break;
+
+
         int nextPrec = getPrecedence(peek());
         if (nextPrec < precedence)
             break;
@@ -498,6 +503,48 @@ Expr* Parser::ParseBinaryExpr(int precedence) {
     return left;
 }
 
+Expr* Parser::ParseArrayLiteral() {
+    eat(); // consume '['
+
+    vector<Expr*> elements;
+
+    if (peek().type == TokenType::RBracket) {
+        eat(); // empty array
+        return new ArrayLiteral(elements);
+    }
+
+    // first element determines array type
+    TokenType elementType = peek().type;
+
+    if (!(elementType == TokenType::IntLiteral ||
+          elementType == TokenType::FloatLiteral ||
+          elementType == TokenType::StringLiteral ||
+          elementType == TokenType::BoolLiteral)) {
+        throw std::runtime_error("Invalid start of array literal");
+    }
+
+    while (notEOF() && peek().type != TokenType::RBracket) {
+
+        Token elemTok = eat();
+
+        if (elemTok.type != elementType) {
+            throw std::runtime_error("Array elements must be the same type");
+        }
+
+        elements.push_back(new Literal(elemTok.value));
+
+        if (peek().type == TokenType::Semicolon) {
+            eat();
+        } else if (peek().type != TokenType::RBracket) {
+            throw std::runtime_error("Expected ';' or ']' in array literal");
+        }
+    }
+
+    expect(TokenType::RBracket, "Expected ']' after array literal");
+
+    return new ArrayLiteral(elements);
+}
+
 Expr* Parser::ParsePrimExpr() {
     Token tok = eat();
     std::cerr << "[PARSER] ParsePrimExpr tok="<<tok.value<<" type="<<(int)tok.type<<"\n";
@@ -509,7 +556,7 @@ Expr* Parser::ParsePrimExpr() {
 
     switch (tok.type) {
         case TokenType::Identifier:
-            if(peek(1).type == TokenType::Backslash) {
+            if(peek().type == TokenType::Backslash) {
                 // function call
                 expr = ParseFunctionCall(tok.value);
             } else {
@@ -538,52 +585,19 @@ Expr* Parser::ParsePrimExpr() {
             break;
 
         case TokenType::LBracket: {
-            vector<Expr*> elements;
-            // Check if this is a range [start:end]
-            if (peek().type == TokenType::IntLiteral && peek(1).type == TokenType::RangeOp) {
-                Token startTok = eat();
-                eat(); // consume :
-                Token endTok = eat();
-                Expr* startExpr = new Literal(startTok.value);
-                Expr* endExpr = new Literal(endTok.value);
-                if (peek().type == TokenType::RBracket) {
-                    eat(); // consume ]
-                }
-                expr = new RangeExpr(startExpr, endExpr);
-                break;
+
+            // If next token looks like a statement → it's a block, not array
+            if (peek().type == TokenType::Keyword ||
+                peek().type == TokenType::BlockKeyword) {
+
+                // put '[' back so parseBlock can consume it
+                tokens.insert(tokens.begin(), tok);
+                return nullptr;
             }
-            TokenType ArrayType;
-            // Otherwise, parse array literal
-            if(peek().type==TokenType::RBracket){
-                // empty array
-                eat(); // consume ]
-                expr = new ArrayLiteral(elements);
-                break;
-            }else if(peek().type==TokenType::IntLiteral||peek().type==TokenType::FloatLiteral||peek().type==TokenType::StringLiteral||peek().type==TokenType::BoolLiteral){
-                ArrayType=peek().type;
-            }
-            while (notEOF() && peek().type != TokenType::RBracket) {
-                // Parse array element - handle literal only for simple case
-                Token elemTok = eat();
-                if(elemTok.type != ArrayType) {
-                    if(elemTok.type == TokenType::IntLiteral || elemTok.type == TokenType::FloatLiteral|| elemTok.type == TokenType::StringLiteral || elemTok.type == TokenType::BoolLiteral) {
-                            throw std::runtime_error("Array elements must be of the same type");
-                    } else {
-                   throw std::runtime_error("Unexpected token in array: " + elemTok.value);}
-                }
-                if (peek().type == TokenType::Semicolon) {
-                    eat(); // consume semicolon
-                }else if (peek().type != TokenType::RBracket) {
-                    throw std::runtime_error("Expected ';' or ']' in array literal");
-                }else{
-                    // allow missing semicolon for last element
-                }
-            }
-            if (peek().type == TokenType::RBracket) {
-                eat(); // consume ]
-            }
-            expr = new ArrayLiteral(elements);
-            break;
+
+            // otherwise parse array literal
+            tokens.insert(tokens.begin(), tok);
+            return ParseArrayLiteral();
         }
 
         // default:
@@ -606,7 +620,7 @@ Expr* Parser::ParsePrimExpr() {
             continue;
         }
 
-        if(peek().type == TokenType::Backslash && !inArgumentList){
+        if(peek().type == TokenType::Backslash && !inArgumentList&&peek(1).type != TokenType::LBracket){
             std::cerr << "[PARSER] Found backslash in postfix for expr: " << (expr ? (int)expr->kind : -1) << "\n";
             eat();
             vector<Expr*> args;
@@ -697,6 +711,9 @@ int Parser::getPrecedence(const Token& tok) {
         case TokenType::ArithmeticOp:
             if (tok.value == "+" || tok.value == "-") return 10;
             if (tok.value == "*" || tok.value == "/") return 20;
+            return 0;
+        case TokenType::Keyword:
+            if (tok.value == "mod") return 20;
             return 0;
 
         case TokenType::ComparisonOp:

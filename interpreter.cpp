@@ -1,6 +1,7 @@
 #include<string>
 #include <charconv>
 #include <cctype>
+#include <cmath>
 #include <fstream>
 #include <sstream>
 #include"types.hpp"
@@ -130,6 +131,10 @@ IntVal EvalIntBExpr(IntVal left, IntVal right, std::string op){
         if(right.value!=0){
         result = left.value/right.value;
         works=true;}
+    }else if(op=="mod"){
+        if(right.value!=0){
+        result = left.value%right.value;
+        works=true;}
     }
     if(works){
         return(IntVal(result));
@@ -250,6 +255,10 @@ FloatVal EvalFloatBExpr(FloatVal left, FloatVal right, std::string op){
     }else if(op=="/"){
         if(right.value!=0){
         result = left.value/right.value;
+        works=true;}
+    }else if(op=="mod"){
+        if(right.value!=0){
+        result = fmod(left.value, right.value);
         works=true;}
     }
     if(works){

@@ -1,21 +1,21 @@
 import\loginout\ with log;
 
-void`fn fizzbuzz\int n\\ [
-    if \\n > 15\\ [
-        return\\  \\;
+int`fn fizzbuzz\int n\ [
+    if \n > 15\ [
+        return\n\;
     ]
     
-    if \\n mod 15 == 0\\ [
-        log,wt\\'FizzBuzz'\\;
-    ] el if\\n mod 3 == 0\\ [
-        log,wt\\'Fizz'\\;
-    ] el if\\n mod 5 == 0\\ [
-        log,wt\\'Buzz'\\;
+    if \n mod 15 == 0\ [
+        log,wt\'FizzBuzz'\;
+    ] el if\n mod 3 == 0\ [
+        log,wt\'Fizz'\;
+    ] el if\n mod 5 == 0\ [
+        log,wt\'Buzz'\;
     ] el [
-        log,wt\\n\\;
+        log,wt\n\;
     ]
     
-    fizzbuzz\\n + 1\\;
+    fizzbuzz\n + 1\;
 ]
 
-fizzbuzz\\1\\;
+fizzbuzz\1\;

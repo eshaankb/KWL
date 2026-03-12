@@ -35,6 +35,7 @@ private:
     Stmt* ParseFunctionDecl();
     Expr* ParseFunctionCall(const string& fnName);
     Expr* ParseReturn();
+    Expr* ParseArrayLiteral();
     void expect(TokenType type, const std::string& message);
 
 
