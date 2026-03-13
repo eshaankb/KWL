@@ -541,6 +541,49 @@ std::string printNodeType(NodeType t){
         default: return "UnknownNodeType";
     }
 }
+std::string printValType(ValueType t){
+    switch(t){
+        case ValueType::Integer: return "Integer";
+        case ValueType::Float: return "Float";
+        case ValueType::String: return "String";
+        case ValueType::Function: return "Function";
+        case ValueType::Bool: return "Bool";
+        case ValueType::Structure: return "Structure";
+        case ValueType::Null: return "Null";
+        case ValueType::Array: return "Array";
+        case ValueType::Range: return "Range";
+        case ValueType::TrueClass: return "TrueClass";
+        default: return "Unknown";
+    }
+}
+std::string printVal(RuntimeVal* val){
+    if (!val) return "null";
+    switch(val->type){
+        case ValueType::Integer: return std::to_string(static_cast<IntVal*>(val)->value);
+        case ValueType::Float: return std::to_string(static_cast<FloatVal*>(val)->value);
+        case ValueType::String: return static_cast<StringVal*>(val)->value;
+        case ValueType::Bool: return static_cast<BoolVal*>(val)->value ? "true" : "false";
+        case ValueType::Null: return "null";
+        case ValueType::Array: {
+            std::string s = "[";
+            auto* arr = static_cast<ArrayVal*>(val);
+            for (size_t i = 0; i < arr->elements.size(); ++i) {
+                if (i > 0) s += ", ";
+                s += printVal(arr->elements[i]);
+            }
+            s += "]";
+            return s;
+        }
+        case ValueType::Range: {
+            auto* r = static_cast<RangeVal*>(val);
+            return std::to_string(r->start) + ".." + std::to_string(r->end);
+        }
+        case ValueType::Function: return "<function>";
+        case ValueType::Structure: return "<structure>";
+        case ValueType::TrueClass: return "<class>";
+        default: return "<unknown>";
+    }
+}
 RuntimeVal* EvalFunctionDecl(FunctionDecl* decl, Environment& env){
     FunctionVal* func = new FunctionVal({{}}, nullptr);
     func->paramNames.reserve(decl->parameters.size());
@@ -906,6 +949,82 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
                 throw std::runtime_error("Array index out of bounds");
             }
             return arr->elements[idx];
+        }
+        case NodeType::BuiltinCall: {
+            auto* builtin = dynamic_cast<BuiltinCall*>(astNode);
+            vector<RuntimeVal*> args;
+            for (auto arg : builtin->arguments) {
+                args.push_back(Eval(arg, env));
+            }
+            if (builtin->name == "print") {
+                for (size_t i = 0; i < args.size(); ++i) {
+                    if (i > 0) std::cout << " ";
+                    std::cout << printVal(args[i]);
+                }
+                std::cout << std::endl;
+                return new Nullval();
+            } else if (builtin->name == "len") {
+                if (args.size() != 1) {
+                    throw std::runtime_error("len takes exactly 1 argument");
+                }
+                if (args[0]->type == ValueType::Array) {
+                    return new IntVal(static_cast<ArrayVal*>(args[0])->elements.size());
+                } else if (args[0]->type == ValueType::String) {
+                    return new IntVal(static_cast<StringVal*>(args[0])->value.length());
+                } else if (args[0]->type == ValueType::Range) {
+                    auto* r = static_cast<RangeVal*>(args[0]);
+                    return new IntVal(r->end - r->start);
+                }
+                throw std::runtime_error("len not supported for this type");
+            } else if (builtin->name == "type") {
+                if (args.size() != 1) {
+                    throw std::runtime_error("type takes exactly 1 argument");
+                }
+                return new StringVal(printValType(args[0]->type));
+            } else if (builtin->name == "int") {
+                if (args.size() != 1) {
+                    throw std::runtime_error("int takes exactly 1 argument");
+                }
+                if (args[0]->type == ValueType::Integer) {
+                    return args[0];
+                } else if (args[0]->type == ValueType::Float) {
+                    return new IntVal(static_cast<int>(static_cast<FloatVal*>(args[0])->value));
+                } else if (args[0]->type == ValueType::String) {
+                    return new IntVal(std::stoi(static_cast<StringVal*>(args[0])->value));
+                }
+                throw std::runtime_error("Cannot convert to int");
+            } else if (builtin->name == "float") {
+                if (args.size() != 1) {
+                    throw std::runtime_error("float takes exactly 1 argument");
+                }
+                if (args[0]->type == ValueType::Float) {
+                    return args[0];
+                } else if (args[0]->type == ValueType::Integer) {
+                    return new FloatVal(static_cast<float>(static_cast<IntVal*>(args[0])->value));
+                } else if (args[0]->type == ValueType::String) {
+                    return new FloatVal(std::stof(static_cast<StringVal*>(args[0])->value));
+                }
+                throw std::runtime_error("Cannot convert to float");
+            } else if (builtin->name == "str") {
+                if (args.size() != 1) {
+                    throw std::runtime_error("str takes exactly 1 argument");
+                }
+                return new StringVal(printVal(args[0]));
+            } else if (builtin->name == "bool") {
+                if (args.size() != 1) {
+                    throw std::runtime_error("bool takes exactly 1 argument");
+                }
+                if (args[0]->type == ValueType::Bool) {
+                    return args[0];
+                } else if (args[0]->type == ValueType::Integer) {
+                    return new BoolVal(static_cast<IntVal*>(args[0])->value != 0);
+                } else if (args[0]->type == ValueType::String) {
+                    return new BoolVal(static_cast<StringVal*>(args[0])->value == "true");
+                }
+                throw std::runtime_error("Cannot convert to bool");
+            } else {
+                throw std::runtime_error("Unknown built-in function: " + builtin->name);
+            }
         }
         default:
             std::cerr<<"Unimplemented AST node type in Eval: "<<printNodeType(astNode->kind)<<std::endl;
