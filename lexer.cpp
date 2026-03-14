@@ -17,7 +17,7 @@ bool isBlockKeyword(const string& s) {
 }
 bool isKeyword(const string& s) {
     static const vector<string> keywords = {
-        "and", "or", "nt", "mod", "gbl", "mkimmutable", "crclass", "constr" , "return", "fn", "import", "pub", "with", "all", "tobj"
+        "and", "or", "nt", "mod", "gbl", "mkimmutable", "crclass", "constr" , "return", "fn", "import", "pub", "with", "all", "tobj", "log", "wt", "rd"
     };
     return find(keywords.begin(), keywords.end(), s) != keywords.end();
 }
@@ -80,6 +80,11 @@ vector<Token> tokenize(string sourcecode) {
                 tokens.push_back(Token(num, TokenType::IntLiteral));
             }
             //tokens.push_back(num, isFloat ? FloatLiteral : IntLiteral);
+            continue;
+        }
+        if (src[0] == 'n' && src.size() > 1 && src[1] == '=') {
+            tokens.push_back(Token("n=", TokenType::ComparisonOp));
+            src.erase(src.begin(), src.begin() + 2);
             continue;
         }
         if (isalpha(src[0]) || src[0] == '_') {
@@ -173,6 +178,11 @@ vector<Token> tokenize(string sourcecode) {
             op += src[0];
             op += '=';
             tokens.push_back(Token(op, TokenType::AssignmentOp));
+            src.erase(src.begin(), src.begin() + 2);
+            continue;
+        }
+        if (src[0] == '=' && src.size() > 1 && src[1] == '=') {
+            tokens.push_back(Token("==", TokenType::ComparisonOp));
             src.erase(src.begin(), src.begin() + 2);
             continue;
         }

@@ -12,10 +12,13 @@ public:
 
 private:
     std::vector<Token> tokens;
+    size_t pos = 0;
     // keep track of struct/class names seen so far
     std::unordered_set<std::string> structNames;
     // flag to prevent backslash postfix operators during argument parsing
     bool inArgumentList = false;
+    // flag for grouping expressions (e.g., return value \x\)
+    bool inGrouping = false;
 
     bool notEOF();
     Token eat();

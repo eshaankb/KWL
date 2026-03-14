@@ -5,18 +5,11 @@
 #include <iostream>
 #include <unordered_map>
 #include "types.hpp"
+#include "environment.hpp"
+
 // Forward declaration
 struct BlockStmt;
-
 #include "ast.hpp"
-
-struct RuntimeVal {
-    ValueType type; 
-    RuntimeVal(ValueType t) : type(t) {}    
-    virtual ~RuntimeVal() = default;
-    virtual void print() const = 0;
-    virtual RuntimeVal* clone() const = 0;
-};
 
 struct BoolVal : RuntimeVal {
     bool value;
@@ -43,11 +36,27 @@ struct IntVal : RuntimeVal {
     }
     void print() const override { cout << value; };
 };
+struct Int64Val : RuntimeVal {
+    long long value;
+    Int64Val(long long v) : RuntimeVal(ValueType::Integer64), value(v) {};
+    RuntimeVal* clone() const override {
+        return new Int64Val(value);
+    }
+    void print() const override { cout << value; };
+};
 struct FloatVal : RuntimeVal {
     float value;
     FloatVal(float v) : RuntimeVal(ValueType::Float), value(v) {};
     RuntimeVal* clone() const override {
         return new FloatVal(value);
+    }
+    void print() const override { cout << value; };
+};
+struct Float64Val : RuntimeVal {
+    double value;
+    Float64Val(double v) : RuntimeVal(ValueType::Float64), value(v) {};
+    RuntimeVal* clone() const override {
+        return new Float64Val(value);
     }
     void print() const override { cout << value; };
 };
@@ -92,7 +101,7 @@ struct FunctionVal : RuntimeVal {
     vector<pair<string, ValueType>> paramNames;
     BlockStmt* body;
 
-    FunctionVal(const vector<pair<string,ValueType>>& params = {{}}, BlockStmt* b=nullptr)
+    FunctionVal(const vector<pair<string,ValueType>>& params = {}, BlockStmt* b=nullptr)
         : RuntimeVal(ValueType::Function), paramNames(params), body(b) {}
     
     RuntimeVal* clone() const override {
@@ -150,5 +159,19 @@ struct RangeVal : RuntimeVal {
     }
     void print() const override {
         cout << "[" << start << ":" << end << "]";
+    }
+};
+
+struct ModuleVal : RuntimeVal {
+    Environment* moduleEnv;
+    ModuleVal(Environment* mod)
+        : RuntimeVal(ValueType::Module), moduleEnv(mod)  {}
+    
+    RuntimeVal* clone() const override {
+        return new ModuleVal(moduleEnv);
+    }
+    
+    void print() const override {
+        cout << "<module ";
     }
 };

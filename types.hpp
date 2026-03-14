@@ -10,5 +10,16 @@ enum class ValueType {
     Null,
     Array,
     Range,
-    TrueClass
+    TrueClass,
+    Module,
+    Integer64,
+    Float64
+};
+
+struct RuntimeVal {
+    ValueType type; 
+    RuntimeVal(ValueType t) : type(t) {}    
+    virtual ~RuntimeVal() = default;
+    virtual void print() const = 0;
+    virtual RuntimeVal* clone() const = 0;
 };

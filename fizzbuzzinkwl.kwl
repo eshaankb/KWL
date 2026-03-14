@@ -18,4 +18,4 @@ int`fn fizzbuzz\int n\ [
     fizzbuzz\n + 1\;
 ]
 
-fizzbuzz\1\;
+fizzbuzz\15\;
