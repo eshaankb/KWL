@@ -1,9 +1,23 @@
+/**
+ * @file interpreter.cpp
+ * @brief Interpreter implementation for the KWL language.
+ *
+ * Implements the evaluation engine that traverses the AST and executes
+ * KWL code. Handles all expression types, statements, built-in functions,
+ * user-defined functions, classes, and modules.
+ *
+ * @author KWL Interpreter
+ * @date 2026
+ */
+
 #include<string>
 #include <charconv>
 #include <cctype>
 #include <cmath>
 #include <fstream>
 #include <sstream>
+#include <functional>
+#include <unordered_set>
 #include"types.hpp"
 #include"values.hpp"
 #include"ast.hpp"
@@ -31,6 +45,8 @@ string valueTypeName(ValueType t) {
         case ValueType::Structure: return "Class";
         case ValueType::Array: return "Array";
         case ValueType::Range: return "Range";
+        case ValueType::TrueClass: return "TrueClass";
+        case ValueType::Module: return "Module";
     }
     return "Unknown";
 }
@@ -97,17 +113,17 @@ RuntimeVal* EvalIfStmt(IfStmt* ifstmt, Environment& env) {
         throw std::runtime_error("Type Error: Condition in if statement must evaluate to a boolean");
     }
     if (static_cast<BoolVal&>(*condVal).value) {
-        if (auto* block = dynamic_cast<BlockStmt*>(ifstmt->body)) {
-            return EvalBlockStmt(block, env);
-        }
-        Environment localEnv(&env); // create a new environment for the if block
-        return Eval(ifstmt->body, localEnv);
+        return EvalBlockStmt(ifstmt->body, env);
     } else if (ifstmt->elseBranch != nullptr) {
-        if (auto* block = dynamic_cast<BlockStmt*>(ifstmt->elseBranch)) {
+        Stmt* branch = ifstmt->elseBranch;
+        if (auto* elseWrapper = dynamic_cast<ElseStmt*>(branch)) {
+            branch = elseWrapper->body;
+        }
+        if (auto* block = dynamic_cast<BlockStmt*>(branch)) {
             return EvalBlockStmt(block, env);
         }
-        Environment localEnv(&env); // create a new environment for the if block
-        return Eval(ifstmt->elseBranch, localEnv);
+        // Else-branch can also be a nested IfStmt (el if ...) — evaluate directly
+        return Eval(branch, env);
     } else {
         return new Nullval();
     }
@@ -171,7 +187,7 @@ BoolVal EvalBoolBExpr(BoolVal left, BoolVal right, std::string op){
     if(works){
         return(BoolVal(result));
     }else{
-       return(BoolVal(false));
+        throw std::runtime_error("Runtime Error: Unsupported operator '" + op + "' for boolean operands");
     }
 }
 
@@ -223,30 +239,24 @@ BoolVal EvalCompBExpr(RuntimeVal& left, RuntimeVal& right, std::string op){
             result = lval>=rval;
             works=true;
         }
-    }else if(left.type==ValueType::String&&right.type==ValueType::String){
-        float lval=static_cast<FloatVal&>(left).value;
-        float rval=static_cast<FloatVal&>(right).value;
-            // std::cout<<"Comparing "<<lval<<" and "<<rval<<" with =="<<std::endl;
-        if(op=="=="){
-            result = (lval==rval);
-            works=true;
-        }else if(op=="n="){
-            result = lval!=rval;
-            works=true;
-        }
-        else if(op=="<"){
-            result = lval<rval;
-            works=true;
-        }else if(op==">"){
-            result = lval>rval;
-            works=true;
-        }else if(op=="<="){
-            result = lval<=rval;
-            works=true;       }
-            else if(op==">="){
-            result = lval>=rval;
-            works=true;
-        }
+    }else if(
+        // Mixed numeric: one side int family, other side float family — promote both to double
+        (left.type==ValueType::Integer||left.type==ValueType::Integer64||left.type==ValueType::Float||left.type==ValueType::Float64) &&
+        (right.type==ValueType::Integer||right.type==ValueType::Integer64||right.type==ValueType::Float||right.type==ValueType::Float64)){
+        double lval = (left.type==ValueType::Float64)  ? static_cast<Float64Val&>(left).value  :
+                      (left.type==ValueType::Float)     ? static_cast<FloatVal&>(left).value    :
+                      (left.type==ValueType::Integer64) ? (double)static_cast<Int64Val&>(left).value :
+                                                          (double)static_cast<IntVal&>(left).value;
+        double rval = (right.type==ValueType::Float64)  ? static_cast<Float64Val&>(right).value  :
+                      (right.type==ValueType::Float)     ? static_cast<FloatVal&>(right).value    :
+                      (right.type==ValueType::Integer64) ? (double)static_cast<Int64Val&>(right).value :
+                                                           (double)static_cast<IntVal&>(right).value;
+        if(op=="==")      { result = (lval==rval); works=true; }
+        else if(op=="n=") { result = lval!=rval;   works=true; }
+        else if(op=="<")  { result = lval<rval;    works=true; }
+        else if(op==">")  { result = lval>rval;    works=true; }
+        else if(op=="<=") { result = lval<=rval;   works=true; }
+        else if(op==">=") { result = lval>=rval;   works=true; }
     }else if(left.type==ValueType::String&&right.type==ValueType::String){
         std::string lval=static_cast<StringVal&>(left).value;
         std::string rval=static_cast<StringVal&>(right).value;
@@ -273,7 +283,7 @@ BoolVal EvalCompBExpr(RuntimeVal& left, RuntimeVal& right, std::string op){
     if(works){
         return(BoolVal(result));
     }else{
-       return(BoolVal(false));
+       throw std::runtime_error("Runtime Error: Invalid comparison operation for given operand types");
     }
 }
 
@@ -308,32 +318,19 @@ FloatVal EvalFloatBExpr(FloatVal left, FloatVal right, std::string op){
     }
 }
 RuntimeVal* EvalStringBExpr(StringVal left, StringVal right, std::string op){
-    std::string result="";
-    bool works=false;
     if(op=="+"){
-        result = left.value+right.value;
-        works=true;
+        return new StringVal(left.value + right.value);
     }
-    if(works){
-        return(new StringVal(result));
-    }else{
-        return(new StringVal(""));
-    }
+    throw std::runtime_error("Runtime Error: Unsupported operator '" + op + "' for string operands");
 } 
 
 RuntimeVal* EvalArrayBExpr(ArrayVal left, ArrayVal right, std::string op){
-    std::vector<RuntimeVal*> result;
-    bool works=false;
     if(op=="+"){
-        result = left.elements;
+        std::vector<RuntimeVal*> result = left.elements;
         result.insert(result.end(), right.elements.begin(), right.elements.end());
-        works=true;
+        return new ArrayVal(result);
     }
-    if(works){
-        return(new ArrayVal(result));
-    }else{
-        return(new ArrayVal({}));
-    }
+    throw std::runtime_error("Runtime Error: Unsupported operator '" + op + "' for array operands");
 }
 
 RuntimeVal* EvalBinaryExpr(BinaryExpr binop, Environment& env){
@@ -367,21 +364,23 @@ RuntimeVal* EvalBinaryExpr(BinaryExpr binop, Environment& env){
     if(RHS->type==ValueType::Null||LHS->type==ValueType::Null){
         return(new Nullval());
     }
-    // Integer types: Integer, Integer64
-    else if(RHS->type==ValueType::Integer||LHS->type==ValueType::Integer||
-            RHS->type==ValueType::Integer64||LHS->type==ValueType::Integer64){
+    // Integer types: Integer, Integer64 — only when NEITHER side is a float type.
+    // If one side is float and the other is int, fall through to the float branch below.
+    else if((RHS->type==ValueType::Integer||RHS->type==ValueType::Integer64) &&
+            (LHS->type==ValueType::Integer||LHS->type==ValueType::Integer64)){
         // Convert both to int64 for operation
         long long lval = (LHS->type==ValueType::Integer64) ? static_cast<Int64Val*>(LHS)->value :
                         (LHS->type==ValueType::Integer) ? static_cast<IntVal*>(LHS)->value : 0;
         long long rval = (RHS->type==ValueType::Integer64) ? static_cast<Int64Val*>(RHS)->value :
                         (RHS->type==ValueType::Integer) ? static_cast<IntVal*>(RHS)->value : 0;
+        bool needsInt64 = (LHS->type == ValueType::Integer64 || RHS->type == ValueType::Integer64);
         if(binop.op=="+"||binop.op=="-"||binop.op=="*"||binop.op=="/"||binop.op=="mod"||binop.op=="**"){
-            if(binop.op=="+") return new Int64Val(lval + rval);
-            if(binop.op=="-") return new Int64Val(lval - rval);
-            if(binop.op=="*") return new Int64Val(lval * rval);
-            if(binop.op=="/"){ if(rval==0) throw std::runtime_error("Division by zero"); return new Int64Val(lval / rval); }
-            if(binop.op=="mod"){ if(rval==0) throw std::runtime_error("Division by zero"); return new Int64Val(lval % rval); }
-            if(binop.op=="**") return new Int64Val((long long)pow(lval, rval));
+            if(binop.op=="+") return needsInt64 ? (RuntimeVal*)new Int64Val(lval + rval) : new IntVal((int)(lval + rval));
+            if(binop.op=="-") return needsInt64 ? (RuntimeVal*)new Int64Val(lval - rval) : new IntVal((int)(lval - rval));
+            if(binop.op=="*") return needsInt64 ? (RuntimeVal*)new Int64Val(lval * rval) : new IntVal((int)(lval * rval));
+            if(binop.op=="/"){ if(rval==0) throw std::runtime_error("Division by zero"); return needsInt64 ? (RuntimeVal*)new Int64Val(lval / rval) : new IntVal((int)(lval / rval)); }
+            if(binop.op=="mod"){ if(rval==0) throw std::runtime_error("Division by zero"); return needsInt64 ? (RuntimeVal*)new Int64Val(lval % rval) : new IntVal((int)(lval % rval)); }
+            if(binop.op=="**") return needsInt64 ? (RuntimeVal*)new Int64Val((long long)pow(lval, rval)) : new IntVal((int)pow(lval, rval));
         }
     }else if(RHS->type==ValueType::Float||LHS->type==ValueType::Float||
              RHS->type==ValueType::Float64||LHS->type==ValueType::Float64){
@@ -394,12 +393,15 @@ RuntimeVal* EvalBinaryExpr(BinaryExpr binop, Environment& env){
                      (RHS->type==ValueType::Float) ? static_cast<FloatVal*>(RHS)->value :
                      (RHS->type==ValueType::Integer) ? static_cast<IntVal*>(RHS)->value :
                      (RHS->type==ValueType::Integer64) ? static_cast<Int64Val*>(RHS)->value : 0.0;
-        if(binop.op=="+"||binop.op=="-"||binop.op=="*"||binop.op=="/"||binop.op=="**"){
+        if(binop.op=="+"||binop.op=="-"||binop.op=="*"||binop.op=="/"||binop.op=="mod"||binop.op=="**"){
             if(binop.op=="+") return new Float64Val(lval + rval);
             if(binop.op=="-") return new Float64Val(lval - rval);
             if(binop.op=="*") return new Float64Val(lval * rval);
             if(binop.op=="/"){ if(rval==0.0) throw std::runtime_error("Division by zero"); return new Float64Val(lval / rval); }
+            if(binop.op=="mod"){ if(rval==0.0) throw std::runtime_error("Division by zero"); return new Float64Val(fmod(lval, rval)); }
             if(binop.op=="**") return new Float64Val(pow(lval, rval));
+        } else {
+            throw std::runtime_error("Runtime Error: Unsupported operator '" + binop.op + "' for float types");
         }
     }else if(RHS->type==ValueType::Bool&&LHS->type==ValueType::Bool){
         return(new BoolVal(EvalBoolBExpr(static_cast<BoolVal&>(*LHS),static_cast<BoolVal&>(*RHS),binop.op)));
@@ -435,6 +437,10 @@ RuntimeVal* EvalIdentifier(Identifier identifier, Environment& env){
         case ValueType::Bool:
             return new BoolVal(static_cast<BoolVal&>(*val));
         case ValueType::Array:
+            return val->clone();
+        case ValueType::Function:
+            return val->clone();
+        case ValueType::Module:
             return val->clone();
         default:
             return new Nullval();
@@ -486,18 +492,30 @@ RuntimeVal* EvalConstructorCall(ConstructorCallExpr call, Environment& env){
             instance->fields[field.first] = initVal;
     }
         
-        if (classDecl->constructor && !call.arguments.empty()) {
-            if (call.arguments.size() != classDecl->constructor->params.size()) {
-                throw std::runtime_error("Runtime Error: Constructor expects " + std::to_string(classDecl->constructor->params.size()) + 
-                                         " arguments but got " + std::to_string(call.arguments.size()));
-            }
-            for (size_t i = 0; i < classDecl->constructor->params.size(); i++) {
-                RuntimeVal* argVal = Eval(call.arguments[i], env);
-                if (argVal->type != classDecl->constructor->params[i].second) {
-                    throw std::runtime_error("Type Error: Constructor argument type mismatch for parameter '" + 
-                                           classDecl->constructor->params[i].first + "'");
+        if (!call.arguments.empty()) {
+            if (classDecl->constructor && classDecl->constructor->params.size() > 0) {
+                // Named constructor: match args to declared param names
+                if (call.arguments.size() != classDecl->constructor->params.size()) {
+                    throw std::runtime_error("Runtime Error: Constructor expects " +
+                        std::to_string(classDecl->constructor->params.size()) +
+                        " arguments but got " + std::to_string(call.arguments.size()));
                 }
-                instance->fields[classDecl->constructor->params[i].first] = argVal;
+                for (size_t i = 0; i < classDecl->constructor->params.size(); i++) {
+                    RuntimeVal* argVal = Eval(call.arguments[i], env);
+                    instance->fields[classDecl->constructor->params[i].first] = argVal;
+                }
+            } else {
+                // No explicit constructor: assign args positionally to struct fields
+                if (call.arguments.size() > classDecl->vars.size()) {
+                    throw std::runtime_error("Runtime Error: Too many arguments for struct '" +
+                        classDecl->name + "': expected at most " +
+                        std::to_string(classDecl->vars.size()) + " but got " +
+                        std::to_string(call.arguments.size()));
+                }
+                for (size_t i = 0; i < call.arguments.size(); i++) {
+                    RuntimeVal* argVal = Eval(call.arguments[i], env);
+                    instance->fields[classDecl->vars[i].first] = argVal;
+                }
             }
         }
         return instance;}
@@ -512,8 +530,9 @@ RuntimeVal* EvalCallStruct(CallStructExpr* call, Environment& env){
         } catch (const std::exception& e) {
         }
         
-        if (potentialModule && (uintptr_t)potentialModule > 1000) { 
-            Environment* modEnv = reinterpret_cast<Environment*>(potentialModule);
+        if (auto* modVal = dynamic_cast<ModuleVal*>(potentialModule)) {
+            Environment* modEnv = modVal->moduleEnv;
+            // First try: field is a class/struct
             try {
                 StructDecl* classDecl = modEnv->getClass(call->field);
                 if (classDecl) {
@@ -521,37 +540,38 @@ RuntimeVal* EvalCallStruct(CallStructExpr* call, Environment& env){
                     for (const auto& field : classDecl->vars) {
                         RuntimeVal* initVal;
                         switch(field.second){
-                            case ValueType::Integer:
-                                initVal = new IntVal(0);
-                                break;
-                            case ValueType::Integer64:
-                                initVal = new Int64Val(0);
-                                break;
-                            case ValueType::Float:
-                                initVal = new FloatVal(0.0);
-                                break;
-                            case ValueType::Float64:
-                                initVal = new Float64Val(0.0);
-                                break;
-                            case ValueType::String:
-                                initVal = new StringVal("");
-                                break;
-                            case ValueType::Bool:
-                                initVal = new BoolVal(false);
-                                break;
-                            default:
-                                initVal = new Nullval();
-                                break;
+                            case ValueType::Integer:   initVal = new IntVal(0); break;
+                            case ValueType::Integer64: initVal = new Int64Val(0); break;
+                            case ValueType::Float:     initVal = new FloatVal(0.0); break;
+                            case ValueType::Float64:   initVal = new Float64Val(0.0); break;
+                            case ValueType::String:    initVal = new StringVal(""); break;
+                            case ValueType::Bool:      initVal = new BoolVal(false); break;
+                            default:                   initVal = new Nullval(); break;
                         }
                         instance->fields[field.first] = initVal;
                     }
                     return instance;
                 }
-            } catch (...) {
-            }
+            } catch (...) {}
+            // Second try: field is a function or plain value
+            try {
+                RuntimeVal* member = modEnv->getVal(call->field);
+                if (member) return member->clone();
+            } catch (...) {}
+            throw std::runtime_error("Runtime Error: Module has no member '" + call->field + "'");
         }
     }
-    
+
+    // Handle the case where obj itself is already a ModuleVal (non-Identifier callee path)
+    if (auto* modVal = dynamic_cast<ModuleVal*>(obj)) {
+        Environment* modEnv = modVal->moduleEnv;
+        try {
+            RuntimeVal* member = modEnv->getVal(call->field);
+            if (member) return member->clone();
+        } catch (...) {}
+        throw std::runtime_error("Runtime Error: Module has no member '" + call->field + "'");
+    }
+
     if(obj->type!=ValueType::Structure){
         throw std::runtime_error("Type Error: Attempting to access field of non-structure value");
     }
@@ -564,11 +584,9 @@ RuntimeVal* EvalCallStruct(CallStructExpr* call, Environment& env){
 }
 
 RuntimeVal* EvalVarDecl(VarDecl decl, Environment& env){
-    std::cerr << "[EVAL] EvalVarDecl name="<< decl.name << " type="<< valueTypeName(decl.type) <<" struct="<< decl.structTypeName <<"\n";
     RuntimeVal* initVal;
     if(decl.value!=nullptr){
         initVal = Eval(decl.value, env);
-        std::cerr << "[EVAL] initializer returned type="<< valueTypeName(initVal->type) <<"\n";
         if (decl.type == ValueType::Structure) {
             if (initVal->type != ValueType::Structure) {
                 throw std::runtime_error("Type Error: Expected structure initializer for variable '" + decl.name + "'");
@@ -582,23 +600,43 @@ RuntimeVal* EvalVarDecl(VarDecl decl, Environment& env){
         } else {
             bool typeMismatch = (initVal->type != decl.type);
             // Allow int→float promotion
-            if (!typeMismatch && decl.type == ValueType::Float && initVal->type == ValueType::Integer) {
+            if (typeMismatch && decl.type == ValueType::Float && initVal->type == ValueType::Integer) {
                 initVal = new FloatVal(static_cast<IntVal*>(initVal)->value);
                 typeMismatch = false;
             }
             // Allow int→int64 promotion  
-            if (!typeMismatch && decl.type == ValueType::Integer64 && initVal->type == ValueType::Integer) {
+            if (typeMismatch && decl.type == ValueType::Integer64 && initVal->type == ValueType::Integer) {
                 initVal = new Int64Val(static_cast<IntVal*>(initVal)->value);
                 typeMismatch = false;
             }
             // Allow int64→float promotion
-            if (!typeMismatch && decl.type == ValueType::Float && initVal->type == ValueType::Integer64) {
+            if (typeMismatch && decl.type == ValueType::Float && initVal->type == ValueType::Integer64) {
                 initVal = new FloatVal(static_cast<Int64Val*>(initVal)->value);
                 typeMismatch = false;
             }
-            // Allow int64→int promotion (downcast, allow it)
-            if (!typeMismatch && decl.type == ValueType::Integer && initVal->type == ValueType::Integer64) {
+            // Allow int64→int promotion (downcast)
+            if (typeMismatch && decl.type == ValueType::Integer && initVal->type == ValueType::Integer64) {
                 initVal = new IntVal(static_cast<Int64Val*>(initVal)->value);
+                typeMismatch = false;
+            }
+            // Allow Float → Float64 promotion
+            if (typeMismatch && decl.type == ValueType::Float64 && initVal->type == ValueType::Float) {
+                initVal = new Float64Val(static_cast<FloatVal*>(initVal)->value);
+                typeMismatch = false;
+            }
+            // Allow Integer → Float64 promotion
+            if (typeMismatch && decl.type == ValueType::Float64 && initVal->type == ValueType::Integer) {
+                initVal = new Float64Val(static_cast<IntVal*>(initVal)->value);
+                typeMismatch = false;
+            }
+            // Allow Integer64 → Float64 promotion
+            if (typeMismatch && decl.type == ValueType::Float64 && initVal->type == ValueType::Integer64) {
+                initVal = new Float64Val(static_cast<Int64Val*>(initVal)->value);
+                typeMismatch = false;
+            }
+            // Allow Float64 → Float (downcast)
+            if (typeMismatch && decl.type == ValueType::Float && initVal->type == ValueType::Float64) {
+                initVal = new FloatVal(static_cast<float>(static_cast<Float64Val*>(initVal)->value));
                 typeMismatch = false;
             }
             if (typeMismatch) {
@@ -727,14 +765,14 @@ RuntimeVal* EvalFunctionDecl(FunctionDecl* decl, Environment& env){
         func->paramNames.emplace_back(decl->parameters[i]->name, decl->parameters[i]->type);
     }
     func->body = decl->body;
-    env.declareVal(decl->name, func, true);
+    env.declareVal(decl->name, func, false);
     return new Nullval();
 }
 
 RuntimeVal* EvalFunctionCall(FunctionCall* call, Environment& env){
     if (call->functionName == "wt" || call->functionName == "rd" || 
         call->functionName == "nline" || call->functionName == "fmstr") {
-        if (!env.loginoutImported) {
+        if (!env.isLoginoutImported()) {
             throw std::runtime_error("Runtime Error: Function '" + call->functionName + "' requires importing 'loginout' module. Use: import\\standard\\>loginout\\ with log;");
         }
     }
@@ -830,10 +868,8 @@ RuntimeVal* EvalFunctionCall(FunctionCall* call, Environment& env){
 
 RuntimeVal* Eval(Stmt* astNode, Environment& env){
     if (!astNode) {
-        std::cerr << "[EVAL] called with null astNode\n";
         return new Nullval();
     }
-    std::cerr << "[EVAL] node kind=" << printNodeType(astNode->kind) << "\n";
     switch(astNode->kind){
         case NodeType::ImportStatement: {
             auto* import = dynamic_cast<ImportStmt*>(astNode);
@@ -854,6 +890,23 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
                 modPath = modPath.substr(sepPos + 1);
             }
 
+            // Built-in virtual modules: fully implemented in the interpreter, no file needed.
+            // Importing them just sets the loginoutImported flag and optionally binds the alias
+            // to a dummy ModuleVal so that alias,fn\\ call syntax resolves correctly.
+            static const std::unordered_set<std::string> builtinModules = {"loginout"};
+            std::string modPathNoExt = modPath;
+            if (modPathNoExt.size() > 4 && modPathNoExt.substr(modPathNoExt.size()-4) == ".kwl")
+                modPathNoExt = modPathNoExt.substr(0, modPathNoExt.size()-4);
+            if (builtinModules.count(modPathNoExt)) {
+                env.loginoutImported = true;
+                if (!import->alias.empty()) {
+                    // Bind alias to an empty module env so alias,fn\\ calls route through
+                    // the CallExpression/CallStructExpr → EvalFunctionCall path.
+                    env.variables[import->alias] = new ModuleVal(new Environment());
+                }
+                return new Nullval();
+            }
+
             if (modPath.find(".kwl") == std::string::npos) {
                 modPath += ".kwl";
             }
@@ -862,7 +915,9 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
                 fs::current_path(),
                 fs::current_path() / "modules",
                 fs::current_path() / "modules" / "standard",
-                "/usr/local/lib/kwl/"
+                fs::current_path() / "standard" / "modules",   // standard/modules/ layout
+                "/usr/local/lib/kwl/",
+                "/usr/local/lib/kwl/standard/modules/"          // installed system modules
             };
 
             fs::path targetFilePath;
@@ -970,35 +1025,92 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
             return EvalStruct(structure, env);
 
         }case NodeType::CallExpression: {
-            
+
             if (auto callExpr = dynamic_cast<CallExpr*>(astNode)) {
+                // ── Module / builtin method call ──────────────────────────────
+                // MUST be checked BEFORE Eval(callee), because evaluating a
+                // CallStructExpr whose object is a ModuleVal would go through
+                // EvalCallStruct, which throws "Module has no member" for builtins
+                // like wt/rd/nline/fmstr that live in the interpreter, not a file.
+                if (auto* cse = dynamic_cast<CallStructExpr*>(callExpr->callee)) {
+                    if (auto* ident = dynamic_cast<Identifier*>(cse->object)) {
+                        RuntimeVal* maybeModule = nullptr;
+                        try { maybeModule = env.getVal(ident->name); } catch (...) {}
+                        if (auto* modVal = dynamic_cast<ModuleVal*>(maybeModule)) {
+                            // Built-in functions are routed through EvalFunctionCall
+                            // so loginoutImported and the caller's env are both visible.
+                            static const std::unordered_set<std::string> builtinNames =
+                                {"wt", "rd", "nline", "fmstr"};
+                            if (builtinNames.count(cse->field)) {
+                                FunctionCall fc(cse->field, callExpr->arguments);
+                                return EvalFunctionCall(&fc, env);
+                            }
+                            // User-defined function exported from a file module
+                            RuntimeVal* fnVal = nullptr;
+                            try { fnVal = modVal->moduleEnv->getVal(cse->field); } catch (...) {}
+                            if (auto* fv = dynamic_cast<FunctionVal*>(fnVal)) {
+                                if (callExpr->arguments.size() != fv->paramNames.size()) {
+                                    throw std::runtime_error("Runtime Error: Function '" + cse->field +
+                                        "' expects " + std::to_string(fv->paramNames.size()) +
+                                        " arguments but got " + std::to_string(callExpr->arguments.size()));
+                                }
+                                Environment localEnv(modVal->moduleEnv);
+                                for (size_t i = 0; i < callExpr->arguments.size(); i++)
+                                    localEnv.declareVal(fv->paramNames[i].first, Eval(callExpr->arguments[i], env));
+                                try { return Eval(fv->body, localEnv); }
+                                catch (const RetVal& ret) { return ret.value; }
+                            }
+                            // Plain value member (e.g. exported constant)
+                            if (fnVal) return fnVal->clone();
+                            throw std::runtime_error("Runtime Error: Module has no member '" + cse->field + "'");
+                        }
+                    }
+                }
+
+                // ── General call: evaluate callee first ───────────────────────
                 RuntimeVal* calleeVal = Eval(callExpr->callee, env);
+
+                // Calling a struct value (constructor-style)
                 if (calleeVal && calleeVal->type == ValueType::Structure) {
                     StructureVal& structVal = static_cast<StructureVal&>(*calleeVal);
                     try {
                         StructDecl* classDecl = env.getClass(structVal.className);
                         if (classDecl && classDecl->constructor && !callExpr->arguments.empty()) {
                             if (callExpr->arguments.size() != classDecl->constructor->params.size()) {
-                                throw std::runtime_error("Runtime Error: Constructor expects " + std::to_string(classDecl->constructor->params.size()) + 
-                                                       " arguments but got " + std::to_string(callExpr->arguments.size()));
+                                throw std::runtime_error("Runtime Error: Constructor expects " +
+                                    std::to_string(classDecl->constructor->params.size()) +
+                                    " arguments but got " + std::to_string(callExpr->arguments.size()));
                             }
                             for (size_t i = 0; i < callExpr->arguments.size(); i++) {
                                 RuntimeVal* argVal = Eval(callExpr->arguments[i], env);
-                if (argVal->type != classDecl->constructor->params[i].second) {
-                                    throw std::runtime_error("Type Error: Constructor argument type mismatch for parameter '" + 
-                                                           classDecl->constructor->params[i].first + "'");
+                                if (argVal->type != classDecl->constructor->params[i].second) {
+                                    throw std::runtime_error("Type Error: Constructor argument type mismatch for parameter '" +
+                                        classDecl->constructor->params[i].first + "'");
                                 }
                                 structVal.fields[classDecl->constructor->params[i].first] = argVal;
                             }
                         }
-                    } catch (const std::runtime_error& e) {
-
-                    }
+                    } catch (const std::runtime_error&) {}
                     return calleeVal;
+                }
+
+                // Indirect call through a FunctionVal
+                if (calleeVal && calleeVal->type == ValueType::Function) {
+                    FunctionVal* fv = static_cast<FunctionVal*>(calleeVal);
+                    if (callExpr->arguments.size() != fv->paramNames.size()) {
+                        throw std::runtime_error("Runtime Error: Function expects " +
+                            std::to_string(fv->paramNames.size()) + " arguments but got " +
+                            std::to_string(callExpr->arguments.size()));
+                    }
+                    Environment localEnv(&env);
+                    for (size_t i = 0; i < callExpr->arguments.size(); i++)
+                        localEnv.declareVal(fv->paramNames[i].first, Eval(callExpr->arguments[i], env));
+                    try { return Eval(fv->body, localEnv); }
+                    catch (const RetVal& ret) { return ret.value; }
                 }
                 return new Nullval();
             }
-            
+
             if (auto callStructExpr = dynamic_cast<CallStructExpr*>(astNode)) {
                 return EvalCallStruct(callStructExpr, env);
             }
@@ -1052,13 +1164,66 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
             return EvalProgram(dynamic_cast<Program*>(astNode),env);
         }case NodeType::Assignment: {
             auto* asgn = dynamic_cast<Assignment*>(astNode);
-            auto* ident = dynamic_cast<Identifier*>(asgn->target);
-            if (!ident) {
-                throw std::runtime_error("Invalid assignment target (L-Value error)");
+            RuntimeVal* val = Eval(asgn->value, env);
+
+            // Plain variable: x = val
+            if (auto* ident = dynamic_cast<Identifier*>(asgn->target)) {
+                env.assignVal(ident->name, val);
+                return env.getVal(ident->name);
             }
-            auto val = Eval(asgn->value, env);
-            env.assignVal(ident->name, val); 
-            return env.getVal(ident->name);
+
+            // Struct field: obj,field = val  (target is CallStructExpr)
+            if (auto* cse = dynamic_cast<CallStructExpr*>(asgn->target)) {
+                // Walk down to find the root identifier and the owning struct in env
+                // We need a pointer to the live StructureVal stored in the environment,
+                // not a clone, so we navigate manually.
+                std::function<StructureVal*(Expr*)> resolveStruct = [&](Expr* e) -> StructureVal* {
+                    if (auto* id = dynamic_cast<Identifier*>(e)) {
+                        RuntimeVal* v = env.resolve(id->name)->variables[id->name];
+                        if (v->type == ValueType::Structure)
+                            return static_cast<StructureVal*>(v);
+                        throw std::runtime_error("L-Value Error: '" + id->name + "' is not a structure");
+                    }
+                    if (auto* inner = dynamic_cast<CallStructExpr*>(e)) {
+                        StructureVal* parent = resolveStruct(inner->object);
+                        auto it = parent->fields.find(inner->field);
+                        if (it == parent->fields.end())
+                            throw std::runtime_error("L-Value Error: Field '" + inner->field + "' not found");
+                        if (it->second->type == ValueType::Structure)
+                            return static_cast<StructureVal*>(it->second);
+                        throw std::runtime_error("L-Value Error: Field '" + inner->field + "' is not a structure");
+                    }
+                    throw std::runtime_error("Invalid assignment target");
+                };
+                StructureVal* owner = resolveStruct(cse->object);
+                auto it = owner->fields.find(cse->field);
+                if (it == owner->fields.end())
+                    throw std::runtime_error("L-Value Error: Field '" + cse->field + "' not found in structure");
+                it->second = val;
+                return val;
+            }
+
+            // Array index: arr[i] = val  (target is IndexExpr)
+            if (auto* idxExpr = dynamic_cast<IndexExpr*>(asgn->target)) {
+                // Resolve to the live array in the environment
+                auto* id = dynamic_cast<Identifier*>(idxExpr->object);
+                if (!id)
+                    throw std::runtime_error("L-Value Error: Array index assignment requires a named array");
+                RuntimeVal* arrRaw = env.resolve(id->name)->variables[id->name];
+                if (arrRaw->type != ValueType::Array)
+                    throw std::runtime_error("L-Value Error: '" + id->name + "' is not an array");
+                ArrayVal* arr = static_cast<ArrayVal*>(arrRaw);
+                RuntimeVal* idxVal = Eval(idxExpr->index, env);
+                if (idxVal->type != ValueType::Integer)
+                    throw std::runtime_error("Array index must be an integer");
+                int idx = static_cast<IntVal*>(idxVal)->value;
+                if (idx < 0 || idx >= static_cast<int>(arr->elements.size()))
+                    throw std::runtime_error("Array index out of bounds");
+                arr->elements[idx] = val;
+                return val;
+            }
+
+            throw std::runtime_error("Invalid assignment target (L-Value error)");
         } case NodeType::BlockStatement: {
             return EvalBlockStmt(dynamic_cast<BlockStmt*>(astNode), env);
         } case NodeType::FunctionDeclaration: {
@@ -1177,7 +1342,9 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
             }
         }
         default:
+#ifdef DEBUG_MODE
             std::cerr<<"Unimplemented AST node type in Eval: "<<printNodeType(astNode->kind)<<std::endl;
+#endif
             return new Nullval();
-    }
+}
 }

@@ -1,3 +1,15 @@
+/**
+ * @file parser.cpp
+ * @brief Parser implementation for the KWL interpreter.
+ *
+ * Implements the recursive descent parser that transforms a token stream
+ * into an Abstract Syntax Tree (AST). Handles all KWL language constructs
+ * including expressions, statements, functions, classes, and control flow.
+ *
+ * @author KWL Interpreter
+ * @date 2026
+ */
+
 #include "parser.hpp"
 #include"values.hpp"
 #include<string>
@@ -13,21 +25,17 @@ Program Parser::produceAST(string sourcecode) {
 
     int stmtCount = 0;
     while (notEOF()) {
-        std::cerr << "[PARSER] about to parse statement, next token=" << tokens[0].value << "\n";
         Stmt* s = ParseStmt();
         if (s == nullptr) {
-            std::cerr << "[PARSER] ParseStmt returned nullptr, skipping\n";
         } else {
             program.body.push_back(s);
             stmtCount++;
         }
         if (stmtCount > 1000) {
-            std::cerr << "[PARSER] too many statements, aborting\n";
             break;
         }
     }
 
-    std::cerr << "[PARSER] finished produceAST with "<<program.body.size()<<" statements\n";
     return program;
 }
 
@@ -44,12 +52,14 @@ Token& Parser::peek(int offset) {
 
 
 Token Parser::eat() {
-    return tokens[pos++];
+    Token t = tokens[pos++];
+    return t;
 }
 
 void Parser::expect(TokenType type, const std::string& message) {
     if (peek().type != type) {
-        throw std::runtime_error(message);
+        std::string lineInfo = (peek().line > 0) ? " (line " + std::to_string(peek().line) + ")" : "";
+        throw std::runtime_error(message + lineInfo);
     }
     eat();
 }
@@ -62,19 +72,18 @@ Stmt* Parser::ParseStmt() {
     if (!notEOF()) {
         return nullptr;
     }
-    std::cerr << "[PARSER] ParseStmt start, next token=" << peek().value << " type=" << (int)peek().type << "\n";
-    std::cerr << "[PARSER] structNames size=" << structNames.size();
+    #ifdef DEBUG_MODE
     std::cerr << "[DEBUG] Token: " << peek().value << " Type: " << (int)peek().type << "\n";
     if (structNames.find(peek().value) != structNames.end()) std::cerr << " (matches struct)";
     std::cerr << "\n";
+    #endif
     // skip any comment tokens (lexer now removes them, but be safe)
     while (notEOF() && (peek().type == TokenType::CommentLine || peek().type == TokenType::CommentBlock)) {
         eat();
     }
     // Reset parsing state for each new statement
     inArgumentList = false;
-    inGrouping = false;
-    std::cerr << "[PARSER] Resetting state at start of ParseStmt\n";
+    groupingDepth = 0;
     // variable declaration: int x = ...
     Stmt* stmt = nullptr;
     // Handle import statement
@@ -136,8 +145,10 @@ Stmt* Parser::ParseStmt() {
     }
     else if(peek().value=="if"){
         stmt = parseIf();}
+    else if (peek().type == TokenType::BlockKeyword && peek().value == "lp") {
+        stmt = ParseLp();
+    }
     else if (peek().type == TokenType::TypeIdent) {
-        std::cerr << "[PARSER] Matched TypeIdent\n";
         if (peek(1).type == TokenType::Backtick) {
             stmt = ParseFunctionDecl();
         }else{
@@ -145,31 +156,45 @@ Stmt* Parser::ParseStmt() {
     }
     // Check for namespaced type: identifier , identifier identifier (e.g., ta,dog jim = ...)
     else if (peek().type == TokenType::Identifier && peek(1).type == TokenType::Comma && peek(2).type == TokenType::Identifier && peek(3).type == TokenType::Identifier) {
-        std::cerr << "[PARSER] Matched namespaced type: " << peek().value << "," << peek(2).value << "\n";
         stmt = ParseVarDecl();
     }
     else if (peek().type == TokenType::Identifier && structNames.find(peek().value) != structNames.end()) {
-        std::cerr << "[PARSER] Matched Identifier struct: " << peek().value << "\n";
         stmt= ParseVarDecl();
     }
     else if (peek().type == TokenType::Keyword && peek().value == "mkimmutable") {
-        std::cerr << "[PARSER] Matched mkimmutable\n";
         stmt= ParseVarDecl();
     }
     else{
         //  fallback: expression statement
-        std::cerr << "[PARSER] ParseStmt falling through to ParseExpr, peek type=" << (int)peek().type << " value=" << peek().value << "\n";
         stmt = ParseExpr();
         if (!stmt) { throw std::runtime_error("Unexpected token: " + peek().value); }
     }
 
-    if (peek().type == TokenType::Semicolon&&(!(stmt->kind==NodeType::IfStatement||stmt->kind==NodeType::FunctionDeclaration||stmt->kind==NodeType::StructureDeclaration||stmt->kind==NodeType::ImportStatement||stmt->kind==NodeType::WhileStatement||stmt->kind==NodeType::ElseStatement||stmt->kind==NodeType::ExportDeclaration))) {
-        std::cerr << "[PARSER] ParseStmt eating semicolon\n";
+    // Determine whether this statement type needs a trailing semicolon consumed.
+    // Blocks (if/while/fn/struct) do not - their closing ']' already terminates them.
+    // ExportDecl wraps another statement: a wrapped block-statement needs no ';',
+    // but a wrapped variable/expression declaration does.
+    auto needsSemicolon = [](Stmt* s) -> bool {
+        if (s->kind == NodeType::IfStatement    ||
+            s->kind == NodeType::WhileStatement ||
+            s->kind == NodeType::ElseStatement  ||
+            s->kind == NodeType::ImportStatement) return false;
+        if (s->kind == NodeType::FunctionDeclaration ||
+            s->kind == NodeType::StructureDeclaration) return false;
+        if (s->kind == NodeType::ExportDeclaration) {
+            // Only skip ';' if the wrapped decl itself doesn't need one
+            auto* ex = static_cast<ExportDecl*>(s);
+            if (ex->decl && (ex->decl->kind == NodeType::FunctionDeclaration ||
+                             ex->decl->kind == NodeType::StructureDeclaration)) return false;
+            return true; // wrapped var decl needs ';'
+        }
+        return true;
+    };
+    if (peek().type == TokenType::Semicolon && needsSemicolon(stmt)) {
         eat();
-    } else if(!(stmt->kind==NodeType::IfStatement||stmt->kind==NodeType::FunctionDeclaration||stmt->kind==NodeType::StructureDeclaration||stmt->kind==NodeType::ImportStatement||stmt->kind==NodeType::WhileStatement||stmt->kind==NodeType::ElseStatement||stmt->kind==NodeType::ExportDeclaration)){
+    } else if (needsSemicolon(stmt) && peek().type != TokenType::Semicolon) {
         throw std::runtime_error("Syntax Error: Expected ';' at the end of statement, but found '" + peek().value + "'");
     }
-    std::cerr << "[PARSER] ParseStmt returning\n";
     return stmt;
 }
 Stmt* Parser::ParseFunctionDecl() {
@@ -187,7 +212,8 @@ Stmt* Parser::ParseFunctionDecl() {
         params.push_back(static_cast<VarDecl*>(ParseVarDecl()));
         if (peek().type == TokenType::Semicolon) eat();
     }
-    eat(); // consume ''
+    eat(); // consume closing '\'
+    if (peek().type == TokenType::Semicolon) eat(); // optional ';' after param list
     BlockStmt* body = parseBlock();
     FunctionDecl* decl = new FunctionDecl(fnName, params, body);
     return decl;
@@ -197,10 +223,13 @@ Expr* Parser::ParseFunctionCall(const string& fnName) {
     vector<Expr*> args;
     expect(TokenType::Backslash, "Expected '\\' after function name in call expression");
     while (peek().type != TokenType::Backslash) {
+        if (peek().type == TokenType::EndOfFile) {
+            throw std::runtime_error("Unclosed function call: missing closing '\\'");
+        }
         args.push_back(ParseExpr());
         if (peek().type == TokenType::Semicolon) eat();
     }
-    eat(); // consume ']'
+    eat(); // consume closing backslash
     return new FunctionCall(fnName, args);
 }
 
@@ -239,8 +268,10 @@ Stmt* Parser::ParseClassDecl() {
             Token typeTok = eat();
             ValueType fieldType;
             if (typeTok.value == "int") fieldType = ValueType::Integer;
+            else if (typeTok.value == "int64") fieldType = ValueType::Integer64;
             else if (typeTok.value == "str") fieldType = ValueType::String;
             else if (typeTok.value == "fl") fieldType = ValueType::Float;
+            else if (typeTok.value == "fl64") fieldType = ValueType::Float64;
             else if (typeTok.value == "bool") fieldType = ValueType::Bool;
             else throw runtime_error("Unknown field type: " + typeTok.value);
             
@@ -311,6 +342,7 @@ Stmt* Parser::ParseTrueClassDecl() {
         }
     }
 
+    eat(); // consume closing ]
     return new TrueObj(className, fields, methods, new ConstructorDecl(constrParams));
 
 }
@@ -321,7 +353,9 @@ Stmt* Parser::parseIf() {
         return new IfStmt(nullptr, nullptr);
     }
     eat(); // consume backslash
-    Expr* condition = ParseExpr();
+    groupingDepth++;
+    Expr* condition = ParseBinaryExpr();
+    groupingDepth--;
 
     if(condition==nullptr){
         throw std::runtime_error("Expected condition expression after block keyword\n");
@@ -334,8 +368,6 @@ Stmt* Parser::parseIf() {
     }
     if (peek().type == TokenType::Backslash) {
         eat(); // consume optional closing backslash
-    } else if (peek().type == TokenType::LBracket) {
-        eat(); // consume opening bracket for block
     }
     Stmt* body = parseBlock();
     if(body==nullptr){
@@ -343,9 +375,7 @@ Stmt* Parser::parseIf() {
         return new IfStmt(condition, nullptr);
     }
     ElseStmt* elseBranch = nullptr;
-    std::cerr << "[PARSER] parseIf checking for else, peek=" << peek().value << " type=" << (int)peek().type << "\n";
     if(peek().type==TokenType::BlockKeyword&&peek().value=="el"){
-        std::cerr << "[PARSER] Found else, calling ParseEl\n";
         elseBranch = static_cast<ElseStmt*>(ParseEl());
     }
     // if(condition->kind==NodeType::Literal&&condition)
@@ -369,14 +399,14 @@ Stmt* Parser::ParseEl(){
             throw std::runtime_error("Expected block statement for else body\n");
             return new BlockStmt();
         }
-        return body;
+        return new ElseStmt(body);
     }
 }
 
 BlockStmt* Parser::parseBlock() {
     auto block = new BlockStmt();
     // Reset state when entering a new block to prevent stale grouping state
-    inGrouping = false;
+    groupingDepth = 0;
     inArgumentList = false;
     if(peek().type!=TokenType::LBracket){
         throw std::runtime_error("Expected opening '[' for block\n");
@@ -422,11 +452,11 @@ Stmt* Parser::ParseVarDecl() {
         if(tem.value=="int"){
             type=ValueType::Integer;
         }else if(tem.value=="int64"){
-            type=ValueType::Integer;
+            type=ValueType::Integer64;
         }else if(tem.value=="fl"){
             type=ValueType::Float;
         }else if(tem.value=="fl64"){
-            type=ValueType::Float;
+            type=ValueType::Float64;
         }else if(tem.value=="str"){
             type=ValueType::String;
         }else if(tem.value=="bool"){
@@ -469,8 +499,12 @@ Stmt* Parser::ParseVarDecl() {
     }
 
     //consume identifier
+    if (peek().type == TokenType::Keyword && peek().value == "gbl") {
+        eat(); // skip the 'gbl' storage modifier
+    }
     Token name = eat();
-    if (name.type != TokenType::Identifier) {
+    // Accept TypeIdent too - "fl", "int", "str" etc. are valid variable names
+    if (name.type != TokenType::Identifier && name.type != TokenType::TypeIdent) {
         throw std::runtime_error("Expected identifier in variable declaration\n");
         return new VarDecl(ValueType::Null,"INVALID");
     }
@@ -487,7 +521,6 @@ Stmt* Parser::ParseVarDecl() {
     }else if(isc){
         throw std::runtime_error("Expected closing '\\' \n");
     }
-    std::cerr << "[PARSER] ParseVarDecl returning, peek()=" << peek().value << " type=" << (int)peek().type << "\n";
     // TODO: Pass moduleAlias to VarDecl if needed for module-namespaced types
     return new VarDecl(type, name.value, initializer, isc, structName);
 }
@@ -498,19 +531,23 @@ Stmt* Parser::ParseVarDecl() {
 /* =======================
    EXPRESSIONS
    ======================= */
-
-Expr* Parser::ParseExpr() {    std::cerr << "[PARSER] ParseExpr\n";    return ParseBinaryExpr();
+Expr* Parser::ParseExpr() {  
+    #ifdef DEBUG_MODE 
+    std::cerr << "[PARSER] ParseExpr\n";  
+    #endif
+    
+    return ParseBinaryExpr();
 }
 
 Expr* Parser::ParseBinaryExpr(int precedence) {
     Expr* left = ParseUnaryExpr();
-    if (!left) return nullptr;
-    std::cerr << "[PARSER] ParseBinaryExpr left kind=" << (left ? (int)left->kind : -1) << "\n";
-
+    #ifdef DEBUG_MODE
+    if (!left) { std::cerr << "[BINEXPR-NULL-LEFT] prec=" << precedence << "\n"; return nullptr; }
+    #endif
     while (notEOF()) {
-
-        if (peek().type == TokenType::Backslash)
-        break;
+        if (peek().type == TokenType::Backslash) {
+            break;
+        }
 
 
         int nextPrec = getPrecedence(peek());
@@ -599,7 +636,6 @@ Expr* Parser::ParseArrayLiteral() {
 
 Expr* Parser::ParsePrimExpr() {
     Token tok = eat();
-    std::cerr << "[PARSER] ParsePrimExpr tok="<<tok.value<<" type="<<(int)tok.type<<"\n";
 
     if (tok.type == TokenType::EndOfFile) {
         return nullptr;
@@ -607,14 +643,40 @@ Expr* Parser::ParsePrimExpr() {
     Expr* expr = nullptr;
 
     switch (tok.type) {
-        case TokenType::Identifier:
-            if(peek().type == TokenType::Backslash) {
-                // function call
-                expr = ParseFunctionCall(tok.value);
+        case TokenType::Identifier: {
+            // Lookahead: `\` after an identifier is a FUNCTION CALL opener only when the
+            // token after that `\` is a value/expression token (i.e., there are arguments).
+            // If peek(1) is a terminator (`;`, `]`, `\`, operator) the `\` is a closing
+            // delimiter belonging to a surrounding grouping - treat identifier as a variable.
+            bool isFunctionCall = false;
+            if (peek().type == TokenType::Backslash) {
+                TokenType nextNext = peek(1).type;
+                bool p1IsValue = (nextNext == TokenType::Identifier   ||
+                                  nextNext == TokenType::Keyword       ||
+                                  nextNext == TokenType::TypeIdent     ||
+                                  nextNext == TokenType::IntLiteral    ||
+                                  nextNext == TokenType::FloatLiteral  ||
+                                  nextNext == TokenType::StringLiteral ||
+                                  nextNext == TokenType::BoolLiteral   ||
+                                  nextNext == TokenType::Null          ||
+                                  nextNext == TokenType::LogicalOp);   // ArithmeticOp removed: +/-/* after \ = closing delimiter
+                // \  after identifier = zero-arg call only at top level (not inside grouping)
+                bool p1IsZeroArgCall = (nextNext == TokenType::Backslash && groupingDepth == 0);
+                isFunctionCall = p1IsValue || p1IsZeroArgCall;
+            }
+            if (isFunctionCall) {
+                if (structNames.count(tok.value)) {
+                    // Constructor call - parse args then wrap as ConstructorCallExpr
+                    FunctionCall* fc = static_cast<FunctionCall*>(ParseFunctionCall(tok.value));
+                    expr = new ConstructorCallExpr(tok.value, fc->arguments);
+                } else {
+                    expr = ParseFunctionCall(tok.value);
+                }
             } else {
-                // variable reference
-            expr = new Identifier(tok.value);}
+                expr = new Identifier(tok.value);
+            }
             break;
+        }
         case TokenType::StringLiteral:
         case TokenType::IntLiteral:
         case TokenType::FloatLiteral:
@@ -626,35 +688,75 @@ Expr* Parser::ParsePrimExpr() {
             expr = new NullLiteral();
             break;
 
-        // grouping: bslahs expr 
-        // grouping: bslahs expr 
-        case TokenType::Backslash: {
-            // For grouping, suppress postfix handlers but don't track nested state
-            inGrouping = true;
-            expr = ParseExpr();
-            inGrouping = false;  // Reset to prevent stale state from prior expressions
-            if (peek().type != TokenType::Backslash) {
-               throw std::runtime_error("Expected closing '\\' \n");
+        case TokenType::Keyword: {
+            // Keywords in expression context are treated as identifiers.
+            // Covers module aliases (log, wt, rd) and names the lexer over-classifies.
+            bool kwIsCall = false;
+            if (peek().type == TokenType::Backslash) {
+                TokenType nn = peek(1).type;
+                bool nnIsValue = (nn == TokenType::Identifier   ||
+                                  nn == TokenType::Keyword       ||
+                                  nn == TokenType::TypeIdent     ||
+                                  nn == TokenType::IntLiteral    ||
+                                  nn == TokenType::FloatLiteral  ||
+                                  nn == TokenType::StringLiteral ||
+                                  nn == TokenType::BoolLiteral   ||
+                                  nn == TokenType::Null          ||
+                                  nn == TokenType::LogicalOp);   // ArithmeticOp removed
+                bool nnIsZeroArgCall = (nn == TokenType::Backslash && groupingDepth == 0);
+                kwIsCall = nnIsValue || nnIsZeroArgCall;
+            }
+            if (kwIsCall) {
+                expr = ParseFunctionCall(tok.value);
             } else {
-                eat();
+                expr = new Identifier(tok.value);
+            }
+            break;
+        }
+
+        // grouping: bslash expr bslash
+        case TokenType::Backslash: {
+            // For grouping, suppress postfix handlers - use counter for nesting
+            groupingDepth++;
+            expr = ParseExpr();
+            // After expression, expect closing backslash or other terminators
+            if (peek().type == TokenType::Backslash) {
+                eat(); // consume closing backslash
+                groupingDepth--;
+            } else if (peek().type == TokenType::RBracket) {
+                // RBracket can end grouping in if-blocks - don't consume it
+                groupingDepth--;
+            } else if (peek().type == TokenType::Semicolon) {
+                // Semicolon can end grouping - don't consume it
+                groupingDepth--;
+            } else if (peek().type == TokenType::BlockKeyword) {
+                // Block keyword (like 'if', 'el') can end grouping
+                groupingDepth--;
+            } else {
+                throw std::runtime_error("Expected closing '\\', RBracket, Semicolon, or block keyword after grouping, got: " + peek().value);
             }
             break;
         }
 
         case TokenType::LBracket: {
-            // Save current position to check what's after [
-            Token nextTok = peek(1);
-            // If next token looks like a statement → it's a block, not array
-            if (nextTok.type == TokenType::Keyword ||
-                nextTok.type == TokenType::BlockKeyword) {
-
+            // Note: '[' was already consumed by tok=eat() above.
+            // peek() is now the token AFTER '['.
+            // Treat as ARRAY LITERAL only if the first element is a plain value.
+            // Anything else (Identifier, TypeIdent, Keyword, return, etc.) means
+            // this '[' is a BLOCK belonging to an if/lp/fn - put it back.
+            TokenType p0 = peek().type;
+            bool looksLikeArray = (p0 == TokenType::IntLiteral    ||
+                                   p0 == TokenType::FloatLiteral   ||
+                                   p0 == TokenType::StringLiteral  ||
+                                   p0 == TokenType::BoolLiteral    ||
+                                   p0 == TokenType::RBracket);      // empty array []
+            if (!looksLikeArray) {
                 // put '[' back so parseBlock can consume it
-                tokens.insert(tokens.begin(), tok);
+                pos--;
                 return nullptr;
             }
-
-            // otherwise parse array literal
-            tokens.insert(tokens.begin(), tok);
+            // parse array literal - put '[' back first so ParseArrayLiteral eats it
+            pos--;
             return ParseArrayLiteral();
         }
 
@@ -664,11 +766,64 @@ Expr* Parser::ParsePrimExpr() {
     }
     // // Handle postfix expressions: calls and indexing
     while (notEOF()) {
-        std::cerr << "[PARSER] In postfix loop, peek=" << peek().value << " type=" << (int)peek().type << " inArgumentList=" << inArgumentList << " inGrouping=" << inGrouping << "\n";
-        // Break on RBracket, Semicolon, LBracket always
-        // For Backslash: break only when NOT in grouping (let grouping case handle it)
-        if (!inArgumentList && (peek().type == TokenType::RBracket || peek().type == TokenType::Semicolon || peek().type == TokenType::LBracket || (peek().type == TokenType::Backslash && !inGrouping))) {
-            std::cerr << "[PARSER] Breaking from postfix\n";
+        // A backslash is a CALL OPENER (don't break) if peek(1) is an argument-starting token.
+        // Otherwise it is a closing delimiter and we should break.
+        auto isArgStart = [&](TokenType t) {
+            return t == TokenType::Identifier   ||
+                   t == TokenType::Keyword       ||
+                   t == TokenType::TypeIdent     ||
+                   t == TokenType::IntLiteral    ||
+                   t == TokenType::FloatLiteral  ||
+                   t == TokenType::StringLiteral ||
+                   t == TokenType::BoolLiteral   ||
+                   t == TokenType::Null          ||
+                   t == TokenType::LogicalOp     ||
+                   t == TokenType::ArithmeticOp;
+        };
+        // `\` after an identifier is a call opener only when:
+        //   - peek(1) is a true value-start token (args follow), OR
+        //   - peek(1) is also `\` AND we are NOT inside a grouping (zero-arg call: foo\)
+        // Inside a grouping `\` means two successive closing delimiters, not a call.
+        // A backslash is a call opener only when:
+        // 1. expr is something callable (Identifier or member access, NOT an already-resolved call/expression)
+        // 2. peek(1) is an argument-starting token (args follow)
+        // 3. OR peek(1) is also \ AND we are at top-level AND expr is a plain Identifier (zero-arg: foo\)
+        // This prevents sin\n\ / cos\n\ from treating the closing \ as a new call to sin.
+        bool exprIsIdentifier = expr && expr->kind == NodeType::Identifier;
+        bool exprIsCallable = expr && (expr->kind == NodeType::Identifier ||
+                                       expr->kind == NodeType::CallExpression);
+        bool bslashIsCallOpener = false;
+        if (peek().type == TokenType::Backslash && exprIsCallable) {
+            TokenType p1 = peek(1).type;
+            // ArithmeticOp or ComparisonOp after \ means the \ is closing a grouping,
+            // not opening a call — operators follow a closed expression, not arg lists.
+            // Only treat as call opener when p1 is a genuine value-start token.
+            bool p1StartsValue = (p1 == TokenType::Identifier   ||
+                                  p1 == TokenType::Keyword       ||
+                                  p1 == TokenType::TypeIdent     ||
+                                  p1 == TokenType::IntLiteral    ||
+                                  p1 == TokenType::FloatLiteral  ||
+                                  p1 == TokenType::StringLiteral ||
+                                  p1 == TokenType::BoolLiteral   ||
+                                  p1 == TokenType::Null          ||
+                                  p1 == TokenType::LogicalOp);   // unary 'nt'
+            // unary minus: only treat as arg-start when NOT inside a grouping
+            // (inside grouping, \ followed by -expr means closing + unary on next expr)
+            bool p1IsUnaryMinus = (p1 == TokenType::ArithmeticOp && peek(1).value == "-");
+            if (p1StartsValue || (p1IsUnaryMinus && groupingDepth == 0)) {
+                bslashIsCallOpener = true;
+            } else if (p1 == TokenType::Backslash && groupingDepth == 0 && exprIsCallable) {
+                bslashIsCallOpener = true; // zero-arg call (e.g. identifier with no args)
+            }
+        }
+        // A non-opener \ always closes - even inside a grouping context.
+        // The groupingDepth counter prevents INNER expressions from being mistaken
+        // as calls; here we are at the postfix level of the CURRENT expression and
+        // a \ that is not a call opener means "done with this expression".
+        if (!inArgumentList && (peek().type == TokenType::RBracket ||
+                                 peek().type == TokenType::Semicolon ||
+                                 peek().type == TokenType::LBracket  ||
+                                 (peek().type == TokenType::Backslash && !bslashIsCallOpener))) {
             break;
         }
         // function call: function name bslash arg1 ; arg2 bslash
@@ -676,7 +831,7 @@ Expr* Parser::ParsePrimExpr() {
 
             eat(); // ,
             Token fieldTok = eat();
-            if(fieldTok.type != TokenType::Identifier){
+            if(fieldTok.type != TokenType::Identifier && fieldTok.type != TokenType::Keyword){
                 throw std::runtime_error("Expected field name in struct call\n");
             }
             string fieldName = fieldTok.value;
@@ -684,41 +839,34 @@ Expr* Parser::ParsePrimExpr() {
             continue;
         }
 
-        if(peek().type == TokenType::Backslash && !inArgumentList&&peek(1).type != TokenType::LBracket){
-            std::cerr << "[PARSER] Found backslash in postfix for expr: " << (expr ? (int)expr->kind : -1) << "\n";
+        if (peek().type == TokenType::Backslash && !inArgumentList && exprIsCallable && peek(1).type != TokenType::LBracket) {
             eat();
             vector<Expr*> args;
 
             // read arguments until closing backslash
-            bool prevInArgumentList = inArgumentList;
+            int savedGroupingDepth = groupingDepth;  // restore after call, don't zero global state
             inArgumentList = true;
             while (notEOF()) {
+                #ifdef DEBUG_MODE
                 std::cerr << "[PARSER] In backslash arg loop, peek=" << peek().value << " type=" << (int)peek().type << "\n"; 
+                #endif
                 bool foundClBslash = false;
                 if (peek().type == TokenType::Backslash) {
-                    std::cerr << "[PARSER] Found closing backslash, eating and breaking\n";
-                    eat(); // consume closing backslash
+                    eat();
                     foundClBslash = true;
                     break;
                 }
-                std::cerr << "[PARSER] About to parse arg expression\n";
                 args.push_back(ParseExpr());
-                std::cerr << "[PARSER] Parsed arg, now peek=" << peek().value << " type=" << (int)peek().type << "\n";
-                if (peek().type == TokenType::Semicolon&&!foundClBslash) {
-                    std::cerr << "[PARSER] Eating semicolon separator\n";
+                if (peek().type == TokenType::Semicolon && !foundClBslash) {
                     eat();
                     continue;
                 }
-                std::cerr << "[PARSER] No semicolon after arg, continuing\n";
-                // if neither semicolon nor backslash, continue parsing next expr
             }
             inArgumentList = false;
-            inGrouping = false;
-            std::cerr << "[PARSER] Exited backslash arg loop\n";
-            std::cerr << "[PARSER] Exited backslash arg loop\n";
+            groupingDepth = savedGroupingDepth;  // restore — don't clobber outer grouping context
 
             if (auto ident = dynamic_cast<Identifier*>(expr)) {
-                if (structNames.find(ident->name) != structNames.end()) {
+                if (structNames.count(ident->name)) {
                     expr = new ConstructorCallExpr(ident->name, args);
                 } else {
                     expr = new FunctionCall(ident->name, args);
@@ -731,7 +879,7 @@ Expr* Parser::ParsePrimExpr() {
 
         // indexing or potential constructor parameter list
         // Only enter if we have an expression to index and next token is [
-        if (peek().type == TokenType::LBracket && !inArgumentList && expr != nullptr) {
+        if (peek().type == TokenType::LBracket && expr != nullptr) {
             if (auto ident = dynamic_cast<Identifier*>(expr)) {
                 // special-case 'constr' inside class body
                 if (ident->name == "constr") {
@@ -766,6 +914,36 @@ Expr* Parser::ParsePrimExpr() {
 
 
 /* =======================
+   LP (LOOP) STATEMENT
+   lp [ body ]              -- infinite loop
+   lp \cond\ [ body ]       -- conditional (while) loop
+   ======================= */
+Stmt* Parser::ParseLp() {
+    eat(); // consume 'lp'
+
+    // Infinite loop: lp [ ... ]
+    if (peek().type == TokenType::LBracket) {
+        BlockStmt* body = parseBlock();
+        // Represent as WhileStmt with literal true condition
+        return new WhileStmt(new Literal("true"), body);
+    }
+
+    // Conditional loop: lp \cond\ [ ... ]
+    if (peek().type == TokenType::Backslash) {
+        eat(); // consume opening '\'
+        groupingDepth++;
+        Expr* condition = ParseBinaryExpr();
+        groupingDepth--;
+        if (peek().type == TokenType::Backslash) eat(); // consume closing '\'
+        BlockStmt* body = parseBlock();
+        return new WhileStmt(condition, body);
+    }
+
+    throw std::runtime_error("Syntax Error: Expected '[' or '\\' after 'lp'");
+    return nullptr;
+}
+
+/* =======================
    PRECEDENCE
    ======================= */
 
@@ -778,6 +956,7 @@ int Parser::getPrecedence(const Token& tok) {
             return 0;
         case TokenType::ArithmeticOp:
             if (tok.value == "+" || tok.value == "-") return 10;
+            if (tok.value == "**") return 25;          // exponentiation: tighter than * and /
             if (tok.value == "*" || tok.value == "/") return 20;
             return 0;
         case TokenType::Keyword:

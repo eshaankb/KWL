@@ -1,3 +1,14 @@
+/**
+ * @file main.cpp
+ * @brief Main entry point for the KWL interpreter.
+ *
+ * Provides both a REPL (Read-Eval-Print Loop) for interactive use
+ * and file processing mode for running .kwl script files.
+ *
+ * @author KWL Interpreter
+ * @date 2026
+ */
+
 #include<string>
 #include<vector>
 #include<fstream>
@@ -8,6 +19,12 @@
 #include"values.hpp"
 #include"environment.hpp"
 using namespace std;
+
+/**
+ * @brief Converts a NodeType enum to its string representation.
+ * @param t The NodeType to convert
+ * @return Human-readable name of the node type
+ */
 string nodeTypeName(NodeType t) {
     switch(t){
         case NodeType::Program: return "Program";
@@ -29,6 +46,11 @@ string nodeTypeName(NodeType t) {
     }
 };
 
+/**
+ * @brief Prints the AST structure for debugging purposes.
+ * @param node The AST node to print
+ * @param indent Indentation level for pretty printing
+ */
 void printAST(Stmt* node, int indent = 0) {
     string pad(indent, ' ');
     cout << pad << nodeTypeName(node->kind) << endl;
@@ -41,6 +63,13 @@ void printAST(Stmt* node, int indent = 0) {
     // add cases for BinaryExpr, BlockStmt, etc.
 }
 
+/**
+ * @brief Runs the REPL (Read-Eval-Print Loop) for interactive KWL code entry.
+ * @return 0 on successful exit
+ *
+ * The REPL reads KWL code from stdin, parses it, evaluates it,
+ * and prints the result. Supports 'exit' or 'quit' to terminate.
+ */
 int repl() {
     Parser parser;
     Environment env; 
@@ -65,6 +94,11 @@ int repl() {
 }
 }
 
+/**
+ * @brief Processes a KWL source file and executes it.
+ * @param filename Path to the .kwl file to execute
+ * @return 0 on success, 1 on error
+ */
 int processFile(const string& filename) {
     Parser parser;
     Environment env; 
@@ -75,12 +109,13 @@ int processFile(const string& filename) {
     }
     string sourcecode((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
     file.close();
-    // debug tokens before parsing
+#ifdef DEBUG_TOKENS
     auto toks = tokenize(sourcecode);
     cout << "Tokens from file:\n";
     for (auto &t : toks) {
         cout << t.value << " (" << (int)t.type << ")\n";
     }
+#endif
     Program program = parser.produceAST(sourcecode);
     RuntimeVal* result = Eval(&program, env);
     result->print();
@@ -88,6 +123,13 @@ int processFile(const string& filename) {
     return 0;
 }
 
+/**
+ * @brief Main entry point for the KWL interpreter.
+ * @return 0 on successful execution, 1 on error
+ *
+ * Displays a welcome banner and prompts the user to choose between
+ * REPL mode or file execution mode.
+ */
     int main() {
     cout << "KWL TERMINAL INTERPRETER V -1.0.0" << endl;
     cout << "Init:" << endl;
@@ -95,6 +137,7 @@ int processFile(const string& filename) {
     cout << "Open repl or run a file with 'kwl <filename>? 'repl/file'" << endl;
     string mode;
     getline(cin, mode);
+    cerr << "[DEBUG] mode = '" << mode << "'" << endl;
     if (mode == "repl") {
         return repl();
     } else if (mode == "file") {

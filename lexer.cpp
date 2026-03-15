@@ -1,3 +1,15 @@
+/**
+ * @file lexer.cpp
+ * @brief Lexical analyzer implementation for the KWL interpreter.
+ *
+ * Implements the tokenize() function which converts KWL source code
+ * into a stream of tokens. Handles identifiers, keywords, literals,
+ * operators, and comments.
+ *
+ * @author KWL Interpreter
+ * @date 2026
+ */
+
 #include<fstream>
 #include<string>
 #include<vector>
@@ -40,8 +52,10 @@ vector<Token> tokenize(string sourcecode) {
     bool uclosedbslsh = false;
     vector<Token> tokens;
     vector<char> src(sourcecode.begin(), sourcecode.end());
+    int lineNum = 1;   // current source line (1-based)
     while (src.size()) {
         if (isspace(src[0])) {
+            if (src[0] == '\n') lineNum++;
             src.erase(src.begin());
             continue;
         }
@@ -51,6 +65,7 @@ vector<Token> tokenize(string sourcecode) {
                 src.erase(src.begin(), src.begin() + 3);
                 while (src.size() >= 3 &&
                        !(src[0] == '#' && src[1] == '#' && src[2] == '#')) {
+                    if (src[0] == '\n') lineNum++;
                     src.erase(src.begin());
                 }
                 if (src.size() >= 3)
@@ -75,15 +90,14 @@ vector<Token> tokenize(string sourcecode) {
                 src.erase(src.begin());
             }
             if (isFloat){
-                tokens.push_back(Token(num, TokenType::FloatLiteral));
+                tokens.push_back(Token(num, TokenType::FloatLiteral, lineNum));
             }else {
-                tokens.push_back(Token(num, TokenType::IntLiteral));
+                tokens.push_back(Token(num, TokenType::IntLiteral, lineNum));
             }
-            //tokens.push_back(num, isFloat ? FloatLiteral : IntLiteral);
             continue;
         }
         if (src[0] == 'n' && src.size() > 1 && src[1] == '=') {
-            tokens.push_back(Token("n=", TokenType::ComparisonOp));
+            tokens.push_back(Token("n=", TokenType::ComparisonOp, lineNum));
             src.erase(src.begin(), src.begin() + 2);
             continue;
         }
@@ -94,27 +108,28 @@ vector<Token> tokenize(string sourcecode) {
                 src.erase(src.begin());
             }
             if(isBlockKeyword(keyw)){
-                tokens.push_back(Token(keyw, TokenType::BlockKeyword));}
+                tokens.push_back(Token(keyw, TokenType::BlockKeyword, lineNum));}
             else if (isBoolLiteral(keyw))
-                {tokens.push_back(Token(keyw, TokenType::BoolLiteral));}
+                {tokens.push_back(Token(keyw, TokenType::BoolLiteral, lineNum));}
             else if (isNullLiteral(keyw))
-                {tokens.push_back(Token(keyw, TokenType::Null));}
+                {tokens.push_back(Token(keyw, TokenType::Null, lineNum));}
             else if (isType(keyw))
-                {tokens.push_back(Token(keyw, TokenType::TypeIdent));}
+                {tokens.push_back(Token(keyw, TokenType::TypeIdent, lineNum));}
             else if (isKeyword(keyw))
                 if(keyw=="and"||keyw=="or"||keyw=="nt")
-                    {tokens.push_back(Token(keyw, TokenType::LogicalOp));}
+                    {tokens.push_back(Token(keyw, TokenType::LogicalOp, lineNum));}
                 else
-                {tokens.push_back(Token(keyw, TokenType::Keyword));}
+                {tokens.push_back(Token(keyw, TokenType::Keyword, lineNum));}
             else
-                {tokens.push_back(Token(keyw, TokenType::Identifier));}
+                {tokens.push_back(Token(keyw, TokenType::Identifier, lineNum));}
             continue;
         }
         if (src[0] == '"') {
             src.erase(src.begin());
             string str = "\"";
             
-            while (src.size() > 0 && src[0] != '"') {\
+            while (src.size() > 0 && src[0] != '"') {
+                if (src[0] == '\n') lineNum++;
                 if (src[0] == '\\' && src.size() > 1 && src[1] == '"') {
                     str += '"';
                     src.erase(src.begin(), src.begin() + 2);
@@ -130,14 +145,15 @@ vector<Token> tokenize(string sourcecode) {
                 throw std::runtime_error("Lexer Error: Unclosed string literal.");
             }
             str.append("\"");
-            tokens.push_back(Token(str, TokenType::StringLiteral));
+            tokens.push_back(Token(str, TokenType::StringLiteral, lineNum));
             continue;
         }
         if (src[0] == '\'') {
             src.erase(src.begin());
             string str = "";
             
-            while (src.size() > 0 && src[0] != '\'') {\
+            while (src.size() > 0 && src[0] != '\'') {
+                if (src[0] == '\n') lineNum++;
                 if (src[0] == '\\' && src.size() > 1 && src[1] == '\'') {
                     str += '\'';
                     src.erase(src.begin(), src.begin() + 2);
@@ -154,22 +170,17 @@ vector<Token> tokenize(string sourcecode) {
             }
 
             // wrap single-quoted string same as double-quoted so classifier can detect
-            tokens.push_back(Token("'" + str + "'", TokenType::StringLiteral));
+            tokens.push_back(Token("'" + str + "'", TokenType::StringLiteral, lineNum));
             continue;
         }
         if (src[0] == '[') {
-            tokens.push_back(Token(string(1, src[0]), TokenType::LBracket));
+            tokens.push_back(Token(string(1, src[0]), TokenType::LBracket, lineNum));
             src.erase(src.begin());
             continue;
         }
         if (src[0] == ']') {
-            tokens.push_back(Token(string(1,src[0]),TokenType::RBracket));
+            tokens.push_back(Token(string(1,src[0]),TokenType::RBracket, lineNum));
             src.erase(src.begin());
-            continue;
-        }
-        if (src[0] == 'n' && src.size() > 1 && src[1] == '=') {
-            tokens.push_back(Token("n=", TokenType::ComparisonOp));
-            src.erase(src.begin(), src.begin() + 2);
             continue;
         }
         if ((src[0] == '+' || src[0] == '-' || src[0] == '*' || src[0] == '/') &&
@@ -177,73 +188,78 @@ vector<Token> tokenize(string sourcecode) {
             string op;
             op += src[0];
             op += '=';
-            tokens.push_back(Token(op, TokenType::AssignmentOp));
+            tokens.push_back(Token(op, TokenType::AssignmentOp, lineNum));
             src.erase(src.begin(), src.begin() + 2);
             continue;
         }
         if (src[0] == '=' && src.size() > 1 && src[1] == '=') {
-            tokens.push_back(Token("==", TokenType::ComparisonOp));
+            tokens.push_back(Token("==", TokenType::ComparisonOp, lineNum));
             src.erase(src.begin(), src.begin() + 2);
             continue;
         }
         if (src[0] == '=') {
-            tokens.push_back(Token("=", TokenType::AssignmentOp));
+            tokens.push_back(Token("=", TokenType::AssignmentOp, lineNum));
             src.erase(src.begin());
             continue;
-        }if ((src[0] == '<' || src[0] == '>') && src.size() > 1 && src[1] == '=') {
+        }
+        if ((src[0] == '<' || src[0] == '>') && src.size() > 1 && src[1] == '=') {
             string op;
             op += src[0];
             op += '=';
-            tokens.push_back(Token(op, TokenType::ComparisonOp));
+            tokens.push_back(Token(op, TokenType::ComparisonOp, lineNum));
             src.erase(src.begin(), src.begin() + 2);
             continue;
         }
         if (src[0] == ':') {
-            tokens.push_back(Token(":", TokenType::RangeOp));
+            tokens.push_back(Token(":", TokenType::RangeOp, lineNum));
             src.erase(src.begin());
             continue;
         }
         if (src[0] == '<' || src[0] == '>') {
-            tokens.push_back(Token(string(1, src[0]), TokenType::ComparisonOp));
+            tokens.push_back(Token(string(1, src[0]), TokenType::ComparisonOp, lineNum));
             src.erase(src.begin());
             continue;
         }
         if (src[0] == '\\') {
-            tokens.push_back(Token("\\", TokenType::Backslash));
+            tokens.push_back(Token("\\", TokenType::Backslash, lineNum));
             src.erase(src.begin());
             continue;
         }
         if (src[0]=='+'||src[0]=='-'||src[0]=='/'||src[0]=='*'){
             if (src.size() >= 2 && src[0] == '*' && src[1] == '*') {
-                tokens.push_back(Token("**", TokenType::ArithmeticOp));
+                tokens.push_back(Token("**", TokenType::ArithmeticOp, lineNum));
                 src.erase(src.begin());
                 src.erase(src.begin());
             } else {
-                tokens.push_back(Token(string(1,src[0]),TokenType::ArithmeticOp));
+                tokens.push_back(Token(string(1,src[0]),TokenType::ArithmeticOp, lineNum));
                 src.erase(src.begin());
             }
             continue;
-        }  if (src[0]==';'){
-            tokens.push_back(Token(string(1,src[0]),TokenType::Semicolon));
-            src.erase(src.begin());
-            continue;
-        }  if (src[0]==','){
-            tokens.push_back(Token(string(1,src[0]),TokenType::Comma));
-            src.erase(src.begin());
-            continue;
-        }  if (src[0]=='|') {
-            tokens.push_back(Token(string(1,src[0]),TokenType::Pipe));
-            src.erase(src.begin());
-            continue;
-        }  if (src[0]=='`') {
-            tokens.push_back(Token(string(1,src[0]),TokenType::Backtick));
+        }
+        if (src[0]==';'){
+            tokens.push_back(Token(string(1,src[0]),TokenType::Semicolon, lineNum));
             src.erase(src.begin());
             continue;
         }
-        tokens.push_back(Token(string(1, src[0]), TokenType::Invalid));
+        if (src[0]==','){
+            tokens.push_back(Token(string(1,src[0]),TokenType::Comma, lineNum));
+            src.erase(src.begin());
+            continue;
+        }
+        if (src[0]=='|') {
+            tokens.push_back(Token(string(1,src[0]),TokenType::Pipe, lineNum));
+            src.erase(src.begin());
+            continue;
+        }
+        if (src[0]=='`') {
+            tokens.push_back(Token(string(1,src[0]),TokenType::Backtick, lineNum));
+            src.erase(src.begin());
+            continue;
+        }
+        tokens.push_back(Token(string(1, src[0]), TokenType::Invalid, lineNum));
         src.erase(src.begin());
     }
-    tokens.push_back(Token("", TokenType::EndOfFile));
+    tokens.push_back(Token("", TokenType::EndOfFile, lineNum));
     return tokens;
 }
 string tokenTypeName(TokenType t) {
