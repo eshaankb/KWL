@@ -4,7 +4,7 @@
         {
             "type": "cppbuild",
             "label": "C/C++: g++ build active file",
-            "command": "/usr/bin/g++",
+            "command": "/usr/bin/clang++",
             "args": [
                 "-fdiagnostics-color=always",
                 "-g",
@@ -16,7 +16,7 @@
                 "environment.cpp",
                 "-o",
                 "kwlint",
-                "-arch x86_64",
+                "-march=arm"
 
             ],
             "options": {
