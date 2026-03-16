@@ -916,8 +916,10 @@ RuntimeVal* Eval(Stmt* astNode, Environment& env){
                 fs::current_path() / "modules",
                 fs::current_path() / "modules" / "standard",
                 fs::current_path() / "standard" / "modules",   // standard/modules/ layout
+                fs::current_path() / "standard",                // flat standard/ layout
                 "/usr/local/lib/kwl/",
-                "/usr/local/lib/kwl/standard/modules/"          // installed system modules
+                "/usr/local/lib/kwl/standard/modules/",         // installed system modules
+                "/usr/local/lib/kwl/standard/"                 // installed flat layout
             };
 
             fs::path targetFilePath;

@@ -1,0 +1,11 @@
+pub void`fn wt\str s\; [
+    return\  \;
+]
+
+pub void`fn nline\\ [
+    return\  \;
+]
+
+pub str`fn fmstr\str fmt\; [
+    return\fmt\;
+]
